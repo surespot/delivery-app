@@ -1,50 +1,132 @@
-# Welcome to your Expo app 👋
+# Surespot Delivery
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A mobile application for delivery drivers built with React Native and Expo.
 
-## Get started
+## Overview
 
-1. Install dependencies
+Surespot Delivery is a driver-facing app that enables delivery personnel to manage their availability, view and accept orders, track earnings, and access support resources.
 
+## Features
+
+### Home & Availability
+- Toggle online/offline status to receive delivery requests
+- View today's delivery statistics
+- Access available orders
+
+### Profile & Account
+- View and edit personal information
+- Update email and phone with OTP verification
+- Manage account settings
+
+### Settings
+- General app settings
+- Login and security settings
+- Language preferences (multi-language support)
+
+### Support & Legal
+- FAQ section with expandable answers
+- Contact support with categorized help:
+  - Account & Verification issues
+  - Delivery Problems
+  - Earnings & Payouts inquiries
+- Report issues with document attachments
+- Track support request history
+- Terms and Conditions
+- Privacy Policy
+- Account deactivation
+
+## Tech Stack
+
+- **Framework:** React Native with Expo
+- **Navigation:** Expo Router (file-based routing)
+- **State Management:** Zustand
+- **Icons:** Expo Vector Icons (Ionicons, Feather)
+- **SVG Support:** react-native-svg
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v18 or higher recommended)
+- npm or yarn
+- Expo CLI
+- iOS Simulator / Android Emulator / Physical device with Expo Go
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd surespot-delivery
+   ```
+
+2. Install dependencies:
    ```bash
    npm install
    ```
 
-2. Start the app
-
+3. Start the development server:
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+4. Run on your preferred platform:
+   - Press `i` for iOS Simulator
+   - Press `a` for Android Emulator
+   - Scan QR code with Expo Go app on your device
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Project Structure
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+surespot-delivery/
+├── app/                    # Screen components (file-based routing)
+│   ├── (tabs)/            # Tab navigation screens
+│   ├── auth/              # Authentication screens
+│   ├── docs/              # Legal document screens
+│   └── home/              # Main app screens
+├── assets/                # Images and static assets
+├── components/            # Reusable UI components
+├── constants/             # Theme and app constants
+├── hooks/                 # Custom React hooks
+├── store/                 # Zustand state stores
+│   ├── auth-store.ts     # Authentication & user state
+│   ├── orders-store.ts   # Orders state
+│   └── support-store.ts  # Support reports state
+└── scripts/              # Utility scripts
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Environment Variables
 
-## Learn more
+Create a `.env` file in the root directory with the following variables:
 
-To learn more about developing your project with Expo, look at the following resources:
+```env
+# API Configuration
+API_URL=your_api_url_here
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Design Reference
 
-## Join the community
+See `REFERENCE.md` for design guidelines including:
+- Typography specifications
+- Color palette
+- Spacing system
+- Component specifications
 
-Join our community of developers creating universal apps.
+## Scripts
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- `npm start` - Start Expo development server
+- `npm run android` - Run on Android
+- `npm run ios` - Run on iOS
+- `npm run web` - Run on web browser
+- `npm run reset-project` - Reset to fresh project state
+
+## Contributing
+
+1. Create a feature branch from `main`
+2. Make your changes following the design guidelines in `REFERENCE.md`
+3. Test on both iOS and Android
+4. Submit a pull request
+
+## License
+
+Proprietary - All rights reserved.
