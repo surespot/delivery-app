@@ -1,8 +1,23 @@
+import {
+  useCompleteRegistration,
+  useCreatePassword,
+  useInitiateRegistration,
+  useResendEmailOtp,
+  useResendPhoneOtp,
+  useSendEmailOtp,
+  useSendPhoneOtp,
+  useVerifyEmailOtp,
+  useVerifyPhoneOtp,
+} from '@/src/api/onboarding';
+import { getAuthToken } from '@/src/api/onboarding/client';
+import { useAuthStore } from '@/store/auth-store';
+import { useOnboardingStore } from '@/store/onboarding-store';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,24 +26,52 @@ import {
   View,
 } from 'react-native';
 
-interface RiderData {
-  firstName: string;
-  lastName: string;
-  dateOfBirth: string;
-  email: string;
-  phoneNumber: string;
-  address: string;
-  workArea: string;
-  nin: string;
-}
-
 type VerificationStep = 'email' | 'phone';
+
+// Helper function to format date from ISO string to readable format
+const formatDateOfBirth = (isoDateString: string): string => {
+  try {
+    const date = new Date(isoDateString);
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    
+    const day = date.getDate();
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    
+    // Add ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
+    const getOrdinalSuffix = (n: number): string => {
+      if (n > 3 && n < 21) return 'th';
+      switch (n % 10) {
+        case 1: return 'st';
+        case 2: return 'nd';
+        case 3: return 'rd';
+        default: return 'th';
+      }
+    };
+    
+    return `${day}${getOrdinalSuffix(day)} of ${month}, ${year}`;
+  } catch {
+    // If parsing fails, return the original string
+    return isoDateString;
+  }
+};
 
 export default function IdentityVerificationScreen() {
   const [fullName, setFullName] = useState('');
   const [registrationCode, setRegistrationCode] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [riderData, setRiderData] = useState<RiderData | null>(null);
+  const [riderData, setRiderData] = useState<{
+    firstName: string;
+    lastName: string;
+    dateOfBirth: string;
+    email: string;
+    phoneNumber: string;
+    address: string;
+    workArea?: string;
+    nin: string;
+  } | null>(null);
   const [verificationStep, setVerificationStep] = useState<VerificationStep | null>(null);
   const [emailCode, setEmailCode] = useState(['', '', '', '', '', '']);
   const [phoneCode, setPhoneCode] = useState(['', '', '', '', '', '']);
@@ -37,63 +80,96 @@ export default function IdentityVerificationScreen() {
   const [activeOtpIndex, setActiveOtpIndex] = useState(0);
   const [showPasswordCreation, setShowPasswordCreation] = useState(false);
   const [otpError, setOtpError] = useState<string | null>(null);
-  
-  // Mock OTP codes for testing
-  const MOCK_EMAIL_OTP = '080928';
-  const MOCK_PHONE_OTP = '412314';
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showWorkSchedule, setShowWorkSchedule] = useState(false);
-  const [selectedSchedule, setSelectedSchedule] = useState('full-time');
+  const [isCompleting, setIsCompleting] = useState(false);
   const emailInputRefs = useRef<(TextInput | null)[]>([]);
   const phoneInputRefs = useRef<(TextInput | null)[]>([]);
+
+  // Zustand stores
+  const onboardingStore = useOnboardingStore();
+  const { setUser, setAccessToken, setAuthenticated } = useAuthStore();
+
+  // API hooks
+  const initiateRegistration = useInitiateRegistration();
+  const sendEmailOtp = useSendEmailOtp();
+  const verifyEmailOtp = useVerifyEmailOtp();
+  const resendEmailOtp = useResendEmailOtp();
+  const sendPhoneOtp = useSendPhoneOtp();
+  const verifyPhoneOtp = useVerifyPhoneOtp();
+  const resendPhoneOtp = useResendPhoneOtp();
+  const createPassword = useCreatePassword();
+  const completeRegistration = useCompleteRegistration();
+
+  const selectedSchedule = onboardingStore.selectedSchedule;
+  const setSelectedSchedule = onboardingStore.setSelectedSchedule;
 
   const handleBack = () => {
     router.back();
   };
 
-  const fetchRiderData = async () => {
-    setIsLoading(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    // TODO: Replace with actual API call
-    // const response = await fetch(`/api/rider/${registrationCode}`);
-    // const data = await response.json();
-    
-    // Mock data for now
-    const mockData: RiderData = {
-      firstName: 'Ayo',
-      lastName: 'Adedeji',
-      dateOfBirth: '18th of March, 2002',
-      email: 'aadejisimz72@gmail.com',
-      phoneNumber: '+2347042568913',
-      address: '16, Aluko Street, Ikeja, Lagos State',
-      workArea: 'Ikeja',
-      nin: '1678FIRS19GT6',
-    };
-    
-    setRiderData(mockData);
-    setIsLoading(false);
-  };
+  const handleNext = async () => {
+    if (!fullName || !registrationCode || registrationCode.length !== 16) return;
 
-  const handleNext = () => {
-    if (fullName && registrationCode) {
-      fetchRiderData();
+    const nameParts = fullName.trim().split(/\s+/);
+    if (nameParts.length < 2) {
+      Alert.alert('Error', 'Please enter both first and last name');
+      return;
+    }
+
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(' ');
+
+    try {
+      const response = await initiateRegistration.mutateAsync({
+        registrationCode,
+        firstName,
+        lastName,
+      });
+
+      if (response.data) {
+        onboardingStore.setRegistrationCode(registrationCode);
+        onboardingStore.setRiderProfile(response.data);
+        setRiderData({
+          firstName: response.data.firstName,
+          lastName: response.data.lastName,
+          dateOfBirth: response.data.dateOfBirth,
+          email: response.data.email,
+          phoneNumber: response.data.phone,
+          address: response.data.address,
+          nin: response.data.nin,
+        });
+      }
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Failed to initiate registration'
+      );
     }
   };
 
-  const handleProceedToVerification = () => {
+  const handleProceedToVerification = async () => {
+    if (!riderData) return;
+
     setVerificationStep('email');
     setResendTimer(30);
     setActiveOtpIndex(0);
-    // TODO: Send verification code to email
-    // Auto-focus first input after a brief delay
-    setTimeout(() => {
-      emailInputRefs.current[0]?.focus();
-    }, 100);
+
+    try {
+      await sendEmailOtp.mutateAsync({ email: riderData.email });
+      setTimeout(() => {
+        emailInputRefs.current[0]?.focus();
+      }, 100);
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Failed to send OTP'
+      );
+      setVerificationStep(null);
+    }
   };
 
   // Resend timer effect
@@ -123,20 +199,19 @@ export default function IdentityVerificationScreen() {
   };
 
   const handleEmailCodeChange = (index: number, value: string) => {
-    if (value.length > 1) return; // Only allow single digit
-    if (!/^\d*$/.test(value)) return; // Only allow numbers
+    if (value.length > 1) return;
+    if (!/^\d*$/.test(value)) return;
 
     const newCode = [...emailCode];
     newCode[index] = value;
     setEmailCode(newCode);
-    setOtpError(null); // Clear error when user starts typing
+    setOtpError(null);
 
-    // Auto-focus next input
     if (value && index < 5) {
       setActiveOtpIndex(index + 1);
       emailInputRefs.current[index + 1]?.focus();
     } else if (value) {
-      setActiveOtpIndex(-1); // All filled
+      setActiveOtpIndex(-1);
     }
   };
 
@@ -147,13 +222,13 @@ export default function IdentityVerificationScreen() {
     const newCode = [...phoneCode];
     newCode[index] = value;
     setPhoneCode(newCode);
-    setOtpError(null); // Clear error when user starts typing
+    setOtpError(null);
 
     if (value && index < 5) {
       setActiveOtpIndex(index + 1);
       phoneInputRefs.current[index + 1]?.focus();
     } else if (value) {
-      setActiveOtpIndex(-1); // All filled
+      setActiveOtpIndex(-1);
     }
   };
 
@@ -171,39 +246,72 @@ export default function IdentityVerificationScreen() {
     }
   };
 
-  const handleResendCode = () => {
-    if (resendTimer > 0) return;
+  const handleResendCode = async () => {
+    if (resendTimer > 0 || !riderData) return;
+
     setResendTimer(30);
-    setOtpError(null); // Clear error when resending
-    // TODO: Resend verification code
-    if (verificationStep === 'email') {
-      setEmailCode(['', '', '', '', '', '']);
-      setActiveOtpIndex(0);
-      emailInputRefs.current[0]?.focus();
-    } else if (verificationStep === 'phone') {
-      setPhoneCode(['', '', '', '', '', '']);
-      setActiveOtpIndex(0);
-      phoneInputRefs.current[0]?.focus();
+    setOtpError(null);
+
+    try {
+      if (verificationStep === 'email') {
+        await resendEmailOtp.mutateAsync({ email: riderData.email });
+        setEmailCode(['', '', '', '', '', '']);
+        setActiveOtpIndex(0);
+        emailInputRefs.current[0]?.focus();
+      } else if (verificationStep === 'phone') {
+        await resendPhoneOtp.mutateAsync({ phone: riderData.phoneNumber });
+        setPhoneCode(['', '', '', '', '', '']);
+        setActiveOtpIndex(0);
+        phoneInputRefs.current[0]?.focus();
+      }
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Failed to resend OTP'
+      );
     }
   };
 
   const handleVerifyCode = async () => {
     const code = verificationStep === 'email' ? emailCode.join('') : phoneCode.join('');
-    if (code.length !== 6) return;
+    if (code.length !== 6 || !riderData) return;
 
     setIsVerifying(true);
     setOtpError(null);
-    
-    // TODO: Verify code with backend
-    await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Mock validation - check against mock codes
-    const expectedCode = verificationStep === 'email' ? MOCK_EMAIL_OTP : MOCK_PHONE_OTP;
-    
-    if (code !== expectedCode) {
-      setOtpError('Invalid code. Please try again.');
-      setIsVerifying(false);
-      // Clear the code inputs
+    try {
+      if (verificationStep === 'email') {
+        const response = await verifyEmailOtp.mutateAsync({
+          email: riderData.email,
+          otp: code,
+        });
+        if (response.data?.verificationToken) {
+          onboardingStore.setEmailVerificationToken(response.data.verificationToken);
+          setVerificationStep('phone');
+          setResendTimer(30);
+          setEmailCode(['', '', '', '', '', '']);
+          setActiveOtpIndex(0);
+          setOtpError(null);
+          // Send phone OTP
+          await sendPhoneOtp.mutateAsync({ phone: riderData.phoneNumber });
+          setTimeout(() => {
+            phoneInputRefs.current[0]?.focus();
+          }, 100);
+        }
+      } else if (verificationStep === 'phone') {
+        const response = await verifyPhoneOtp.mutateAsync({
+          phone: riderData.phoneNumber,
+          otp: code,
+        });
+        if (response.data?.verificationToken) {
+          onboardingStore.setPhoneVerificationToken(response.data.verificationToken);
+          setVerificationStep(null);
+          setShowPasswordCreation(true);
+          setOtpError(null);
+        }
+      }
+    } catch (error) {
+      setOtpError(error instanceof Error ? error.message : 'Invalid code. Please try again.');
       if (verificationStep === 'email') {
         setEmailCode(['', '', '', '', '', '']);
         setActiveOtpIndex(0);
@@ -217,26 +325,9 @@ export default function IdentityVerificationScreen() {
           phoneInputRefs.current[0]?.focus();
         }, 100);
       }
-      return;
+    } finally {
+      setIsVerifying(false);
     }
-
-    // Code is correct, proceed
-    if (verificationStep === 'email') {
-      setVerificationStep('phone');
-      setResendTimer(30);
-      setEmailCode(['', '', '', '', '', '']);
-      setActiveOtpIndex(0);
-      setOtpError(null);
-      setTimeout(() => {
-        phoneInputRefs.current[0]?.focus();
-      }, 100);
-    } else if (verificationStep === 'phone') {
-      // Both verified, proceed to password creation
-      setVerificationStep(null);
-      setShowPasswordCreation(true);
-      setOtpError(null);
-    }
-    setIsVerifying(false);
   };
 
   const handleVerificationBack = () => {
@@ -257,25 +348,87 @@ export default function IdentityVerificationScreen() {
     (digit) => digit !== ''
   );
 
-  const handlePasswordNext = () => {
-    if (password && confirmPassword && password === confirmPassword) {
-      setShowPasswordCreation(false);
-      setShowWorkSchedule(true);
+  const handlePasswordNext = async () => {
+    if (!password || !confirmPassword || password !== confirmPassword) return;
+    if (!validatePassword(password)) return;
+
+    try {
+      const response = await createPassword.mutateAsync({
+        password,
+        confirmPassword,
+      });
+
+      if (response.data?.userId) {
+        onboardingStore.setUserId(response.data.userId);
+        
+        // Tokens are automatically saved by the hook's onSuccess callback
+        // Don't set auth state yet - wait until registration is complete
+        
+        setShowPasswordCreation(false);
+        setShowWorkSchedule(true);
+      }
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Failed to create password'
+      );
     }
   };
 
-  const handleFinish = () => {
-    // TODO: Submit all registration data and complete registration
-    console.log('Registration complete with schedule:', selectedSchedule);
-    router.replace('/auth/login');
+  const handleFinish = async () => {
+    if (!onboardingStore.registrationCode || !onboardingStore.scheduleDays) return;
+
+    setIsCompleting(true);
+
+    try {
+      // Token should already be saved from password creation
+      // Complete registration using the saved token
+      const completeResponse = await completeRegistration.mutateAsync({
+        registrationCode: onboardingStore.registrationCode,
+        schedule: onboardingStore.scheduleDays,
+      });
+
+      if (completeResponse.data) {
+        // Set user info from rider data if available
+        if (riderData) {
+          setUser({
+            id: onboardingStore.userId || '',
+            firstName: riderData.firstName,
+            lastName: riderData.lastName,
+            phone: riderData.phoneNumber,
+            email: riderData.email,
+            avatar: null,
+          });
+        }
+        
+        // Get the saved access token and set it in auth store
+        // This will also set isAuthenticated to true
+        const token = await getAuthToken();
+        if (token) {
+          setAccessToken(token);
+        } else {
+          // Fallback: just set authenticated if token retrieval fails
+          setAuthenticated(true);
+        }
+        
+        router.replace('/home');
+      }
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Failed to complete registration'
+      );
+    } finally {
+      setIsCompleting(false);
+    }
   };
 
   const validatePassword = (pwd: string) => {
     if (pwd.length < 8) return false;
-    if (!/[A-Z]/.test(pwd)) return false; // Uppercase letter
-    if (!/[a-z]/.test(pwd)) return false; // Lowercase letter
-    if (!/[0-9]/.test(pwd)) return false; // Number
-    if (!/[^A-Za-z0-9]/.test(pwd)) return false; // Special character
+    if (!/[A-Z]/.test(pwd)) return false;
+    if (!/[a-z]/.test(pwd)) return false;
+    if (!/[0-9]/.test(pwd)) return false;
+    if (!/[^A-Za-z0-9]/.test(pwd)) return false;
     return true;
   };
 
@@ -351,7 +504,7 @@ export default function IdentityVerificationScreen() {
                     styles.scheduleOption,
                     isSelected && styles.scheduleOptionSelected,
                   ]}
-                  onPress={() => setSelectedSchedule(option.id)}>
+                  onPress={() => setSelectedSchedule(option.id as any)}>
                   <View style={styles.scheduleOptionContent}>
                     <Text
                       style={[
@@ -388,8 +541,15 @@ export default function IdentityVerificationScreen() {
             }}>
             <Ionicons name="chevron-back" size={24} color="#1F1F1F" />
           </Pressable>
-          <Pressable style={styles.finishButton} onPress={handleFinish}>
-            <Text style={styles.finishButtonText}>Finish</Text>
+          <Pressable
+            style={styles.finishButton}
+            onPress={handleFinish}
+            disabled={isCompleting}>
+            {isCompleting ? (
+              <ActivityIndicator size="small" color="#1F1F1F" />
+            ) : (
+              <Text style={styles.finishButtonText}>Finish</Text>
+            )}
           </Pressable>
         </View>
       </View>
@@ -479,8 +639,12 @@ export default function IdentityVerificationScreen() {
           <Pressable
             style={[styles.nextButton, isPasswordValid && styles.nextButtonActive]}
             onPress={handlePasswordNext}
-            disabled={!isPasswordValid}>
-            <Text style={styles.nextButtonText}>Next</Text>
+            disabled={!isPasswordValid || createPassword.isPending}>
+            {createPassword.isPending ? (
+              <ActivityIndicator size="small" color="#1F1F1F" />
+            ) : (
+              <Text style={styles.nextButtonText}>Next</Text>
+            )}
           </Pressable>
         </View>
       </View>
@@ -606,7 +770,7 @@ export default function IdentityVerificationScreen() {
             
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Date of Birth:</Text>
-              <Text style={styles.detailValue}>{riderData.dateOfBirth}</Text>
+              <Text style={styles.detailValue}>{formatDateOfBirth(riderData.dateOfBirth)}</Text>
             </View>
             
             <View style={styles.detailRow}>
@@ -624,10 +788,12 @@ export default function IdentityVerificationScreen() {
               <Text style={styles.detailValue}>{riderData.address}</Text>
             </View>
             
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Work Area:</Text>
-              <Text style={styles.detailValue}>{riderData.workArea}</Text>
-            </View>
+            {riderData.workArea && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Work Area:</Text>
+                <Text style={styles.detailValue}>{riderData.workArea}</Text>
+              </View>
+            )}
             
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>NIN:</Text>
@@ -652,8 +818,13 @@ export default function IdentityVerificationScreen() {
         <View style={styles.bottomButtonContainer}>
           <Pressable
             style={styles.proceedButton}
-            onPress={handleProceedToVerification}>
-            <Text style={styles.proceedButtonText}>Proceed to Verification</Text>
+            onPress={handleProceedToVerification}
+            disabled={sendEmailOtp.isPending}>
+            {sendEmailOtp.isPending ? (
+              <ActivityIndicator size="small" color="#1F1F1F" />
+            ) : (
+              <Text style={styles.proceedButtonText}>Proceed to Verification</Text>
+            )}
           </Pressable>
         </View>
       </View>
@@ -661,7 +832,7 @@ export default function IdentityVerificationScreen() {
   }
 
   // Show loading state
-  if (isLoading) {
+  if (initiateRegistration.isPending) {
     return (
       <View style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -680,7 +851,7 @@ export default function IdentityVerificationScreen() {
         contentContainerStyle={styles.contentContainer}
         keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <Text style={styles.title}>Hi There! 👋</Text>
+          <Text style={styles.title}>Hi There!</Text>
           <Text style={styles.instruction}>
             Please provide your full name(first + last) and the{' '}
             <Text style={styles.link} onPress={handleCodeLink}>
@@ -738,8 +909,12 @@ export default function IdentityVerificationScreen() {
         <Pressable
           style={[styles.nextButton, isFormValid && styles.nextButtonActive]}
           onPress={handleNext}
-          disabled={!isFormValid || isLoading}>
-          <Text style={styles.nextButtonText}>Next</Text>
+          disabled={!isFormValid || initiateRegistration.isPending}>
+          {initiateRegistration.isPending ? (
+            <ActivityIndicator size="small" color="#1F1F1F" />
+          ) : (
+            <Text style={styles.nextButtonText}>Next</Text>
+          )}
         </Pressable>
       </View>
     </View>
@@ -929,14 +1104,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1F1F1F',
   },
-  verificationHeader: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#7A7A7A',
-    textTransform: 'uppercase',
-    marginBottom: 16,
-    letterSpacing: 0.5,
-  },
   verificationInstruction: {
     fontSize: 20,
     lineHeight: 28,
@@ -1076,4 +1243,3 @@ const styles = StyleSheet.create({
     color: '#1F1F1F',
   },
 });
-

@@ -38,6 +38,12 @@
             "backgroundColor": "#ffffff"
           }
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Surespot Delivery to use your location to match you with nearby delivery requests and provide real-time tracking."
+        }
       ]
     ],
     "experiments": {

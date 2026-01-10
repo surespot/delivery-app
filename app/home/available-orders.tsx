@@ -1,8 +1,12 @@
 import { useOrdersStore } from '@/store/orders-store';
+import { useEligibleOrders, useAcceptOrder, useOrdersWebSocket } from '@/src/api/orders/hooks';
+import { getErrorMessage } from '@/src/api/orders/utils';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     Dimensions,
     Modal,
     PanResponder,
@@ -21,7 +25,48 @@ const MAX_PRICE = 50000;
 
 export default function AvailableOrdersScreen() {
   const router = useRouter();
-  const { availableOrders, addCurrentOrder, currentOrders } = useOrdersStore();
+  const { 
+    availableOrders, 
+    addCurrentOrder, 
+    currentOrders, 
+    setAvailableOrders,
+    setError,
+    clearError 
+  } = useOrdersStore();
+  
+  // API hooks
+  const { data: eligibleOrdersData, isLoading, error, refetch } = useEligibleOrders(1, 20, 'ready');
+  const acceptOrderMutation = useAcceptOrder();
+  
+  // WebSocket connection for real-time updates
+  useOrdersWebSocket(true, {
+    onOrderReady: () => {
+      // Refresh eligible orders when new order becomes ready
+      refetch();
+    },
+    onError: (err) => {
+      console.error('WebSocket error:', err);
+    },
+  });
+
+  // Update store when API data changes
+  useEffect(() => {
+    if (eligibleOrdersData?.data?.orders) {
+      setAvailableOrders(eligibleOrdersData.data.orders);
+      clearError();
+    }
+  }, [eligibleOrdersData, setAvailableOrders, clearError]);
+
+  // Handle API errors
+  useEffect(() => {
+    if (error) {
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Failed to load available orders';
+      setError(errorMessage);
+    }
+  }, [error, setError]);
+
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [selectedDistance, setSelectedDistance] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -128,6 +173,31 @@ export default function AvailableOrdersScreen() {
     setShowFilterModal(false);
   };
 
+  const handleAcceptOrder = async (orderId: string) => {
+    if (currentOrders.length >= 3) {
+      Alert.alert('Order Limit', 'You cannot accept more than 3 orders at once. Please deliver some orders first.');
+      return;
+    }
+
+    try {
+      clearError();
+      await acceptOrderMutation.mutateAsync(orderId);
+      // Success - the mutation will invalidate queries and update the store
+      Alert.alert('Success', 'Order accepted successfully!');
+    } catch (err: any) {
+      const errorMessage = err?.message || 'Failed to accept order';
+      const errorCode = err?.response?.data?.error?.code || '';
+      
+      if (errorCode === 'ORDER_ALREADY_ASSIGNED' || errorCode === 'MAX_ORDERS_REACHED') {
+        // Refresh the list to get updated data
+        refetch();
+        Alert.alert('Order Unavailable', getErrorMessage(errorCode) || errorMessage);
+      } else {
+        Alert.alert('Error', getErrorMessage(errorCode) || errorMessage);
+      }
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -147,7 +217,12 @@ export default function AvailableOrdersScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
-        {availableOrders.length === 0 ? (
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#2DBE7E" />
+            <Text style={styles.loadingText}>Loading available orders...</Text>
+          </View>
+        ) : availableOrders.length === 0 ? (
           <View style={styles.ordersContainer}>
             <Text style={styles.emptyStateText}>
               No available orders at the moment. Check back later!
@@ -196,15 +271,15 @@ export default function AvailableOrdersScreen() {
                 <Pressable
                   style={[
                     styles.pickOrderButton,
-                    currentOrders.length >= 3 && styles.pickOrderButtonDisabled,
+                    (currentOrders.length >= 3 || acceptOrderMutation.isPending) && styles.pickOrderButtonDisabled,
                   ]}
-                  onPress={() => {
-                    if (currentOrders.length < 3) {
-                      addCurrentOrder(order);
-                    }
-                  }}
-                  disabled={currentOrders.length >= 3}>
-                  <Text style={styles.pickOrderButtonText}>Pick Order</Text>
+                  onPress={() => handleAcceptOrder(order.id)}
+                  disabled={currentOrders.length >= 3 || acceptOrderMutation.isPending}>
+                  {acceptOrderMutation.isPending ? (
+                    <ActivityIndicator size="small" color="#1F1F1F" />
+                  ) : (
+                    <Text style={styles.pickOrderButtonText}>Pick Order</Text>
+                  )}
                 </Pressable>
               </View>
             ))}
@@ -489,6 +564,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     paddingVertical: 40,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: '#7A7A7A',
   },
   modalOverlay: {
     flex: 1,

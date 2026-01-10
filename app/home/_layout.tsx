@@ -1,6 +1,31 @@
 import { Stack } from 'expo-router';
+import { useEffect } from 'react';
+import { useInitialLocationBroadcast } from '@/src/hooks/use-initial-location-broadcast';
+import { useAuthStore } from '@/store/auth-store';
+import { createOrdersSocket, disconnectOrdersSocket } from '@/src/api/orders/websocket';
 
 export default function HomeLayout() {
+  const { isAuthenticated, isOnline } = useAuthStore();
+
+  // Broadcast location when app opens
+  useInitialLocationBroadcast();
+
+  // Manage a single shared orders WebSocket connection for the home stack
+  useEffect(() => {
+    if (!isAuthenticated || !isOnline) {
+      // Disconnect when user logs out or goes offline
+      disconnectOrdersSocket();
+      return;
+    }
+
+    // Ensure socket is created/connected
+    createOrdersSocket().catch((error) => {
+      console.error('Error creating orders WebSocket from HomeLayout:', error);
+    });
+
+    // Don't disconnect on unmount here; this layout persists for the home stack.
+  }, [isAuthenticated, isOnline]);
+
   return (
     <Stack>
       <Stack.Screen

@@ -3,12 +3,15 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     Pressable,
     ScrollView,
     StyleSheet,
     Text,
     View,
 } from 'react-native';
+import { useGetCurrentRiderProfile, useLogout } from '@/src/api/onboarding';
 
 const NAV_ITEMS = [
   { key: 'home', label: 'Home', icon: 'home' },
@@ -19,8 +22,13 @@ const NAV_ITEMS = [
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { isOnline, setIsOnline } = useAuthStore();
+  const { isOnline, setIsOnline, logout } = useAuthStore();
   const [activeNav, setActiveNav] = useState('profile');
+  const logoutMutation = useLogout();
+  const { data: profileResponse, isLoading: isLoadingProfile } = useGetCurrentRiderProfile();
+  
+  const profile = profileResponse?.data;
+  const stats = profile?.stats?.today;
 
   const menuItems = [
     {
@@ -56,6 +64,40 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleLogout = async () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logoutMutation.mutateAsync();
+              // Clear auth state
+              logout();
+              // Navigate to login screen
+              router.replace('/auth/login' as any);
+            } catch (error) {
+              // Even if logout fails, clear local state
+              logout();
+              router.replace('/auth/login' as any);
+              Alert.alert(
+                'Logout',
+                error instanceof Error ? error.message : 'Failed to logout from server, but you have been logged out locally'
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -75,7 +117,9 @@ export default function ProfileScreen() {
             </View>
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.userName}>Ayo Adedeji</Text>
+            <Text style={styles.userName}>
+              {profile ? `${profile.firstName} ${profile.lastName}` : 'Loading...'}
+            </Text>
             <Text style={styles.userRole}>surespot courier</Text>
           </View>
           <Pressable
@@ -106,24 +150,38 @@ export default function ProfileScreen() {
         {/* Today's Stats Section */}
         <View style={styles.statsSection}>
           <Text style={styles.sectionTitle}>Today&apos;s Stats</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Completed Orders</Text>
-              <Text style={styles.statValue}>4</Text>
+          {isLoadingProfile ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#1F1F1F" />
             </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Distance Covered</Text>
-              <Text style={styles.statValue}>10.4 KM</Text>
+          ) : (
+            <View style={styles.statsGrid}>
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>Completed Orders</Text>
+                <Text style={styles.statValue}>
+                  {stats?.completedOrders ?? 0}
+                </Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>Distance Covered</Text>
+                <Text style={styles.statValue}>
+                  {stats?.distanceCoveredFormatted ?? '0 km'}
+                </Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>Time Online</Text>
+                <Text style={styles.statValue}>
+                  {stats?.timeOnlineFormatted ?? '0h 0m'}
+                </Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statLabel}>Earnings</Text>
+                <Text style={styles.statValue}>
+                  {stats?.earningsFormatted ?? '₦0.00'}
+                </Text>
+              </View>
             </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Time Online</Text>
-              <Text style={styles.statValue}>6hrs</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Earnings</Text>
-              <Text style={styles.statValue}>₦6,500</Text>
-            </View>
-          </View>
+          )}
         </View>
 
         {/* Settings and Information List */}
@@ -153,8 +211,15 @@ export default function ProfileScreen() {
         </View>
 
         {/* Logout Button */}
-        <Pressable style={styles.logoutButton}>
-          <Text style={styles.logoutButtonText}>Logout</Text>
+        <Pressable
+          style={styles.logoutButton}
+          onPress={handleLogout}
+          disabled={logoutMutation.isPending}>
+          {logoutMutation.isPending ? (
+            <ActivityIndicator size="small" color="#FF5252" />
+          ) : (
+            <Text style={styles.logoutButtonText}>Logout</Text>
+          )}
         </Pressable>
       </ScrollView>
 
@@ -370,5 +435,10 @@ const styles = StyleSheet.create({
   },
   navLabelActive: {
     color: '#1f1f1f',
+  },
+  loadingContainer: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -1,14 +1,27 @@
-import { useOrdersStore } from '@/store/orders-store';
+import { useGetCurrentRiderProfile } from '@/src/api/onboarding/hooks';
+import {
+  useAcceptOrder,
+  useAssignedOrders,
+  useEligibleOrders,
+  useMarkOrderAsDelivered,
+  useOrdersWebSocket,
+  usePickUpOrder,
+} from '@/src/api/orders/hooks';
+import { getErrorMessage } from '@/src/api/orders/utils';
+import { useRiderLocationTracking } from '@/src/hooks/use-rider-location';
 import { useAuthStore } from '@/store/auth-store';
+import { useOrdersStore } from '@/store/orders-store';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 
 const NAV_ITEMS = [
@@ -26,17 +39,119 @@ export default function HomeScreen() {
   const {
     currentOrders,
     availableOrders,
-    markAsDelivered,
-    addCurrentOrder,
+    setCurrentOrders,
+    setAvailableOrders,
   } = useOrdersStore();
+
+  // API hooks
+  const { data: activeOrdersData, isLoading: isLoadingActive, refetch: refetchActive } = useAssignedOrders(
+    1,
+    20,
+    undefined, // Get all assigned orders (ready + out-for-delivery)
+    isOnline
+  );
+
+  const { data: eligibleOrdersData, isLoading: isLoadingAvailable, refetch: refetchAvailable } = useEligibleOrders(
+    1,
+    20,
+    'ready',
+    isOnline
+  );
+
+  const acceptOrderMutation = useAcceptOrder();
+  const markDeliveredMutation = useMarkOrderAsDelivered();
+  const pickUpOrderMutation = usePickUpOrder();
+
+  // Get current rider profile for name
+  const { data: riderProfileData } = useGetCurrentRiderProfile(isOnline);
+  const riderName = riderProfileData?.data?.firstName || 'Rider';
+
+  // WebSocket connection for real-time updates
+  useOrdersWebSocket(isOnline, {
+    onOrderReady: () => {
+      // Refresh eligible orders when new order becomes ready
+      refetchAvailable();
+    },
+    onError: (err) => {
+      console.error('WebSocket error:', err);
+    },
+  });
+
+  // Update store when API data changes
+  useEffect(() => {
+    if (activeOrdersData?.data?.orders) {
+      // Filter to only show ready and out-for-delivery orders
+      const activeOrders = activeOrdersData.data.orders.filter(
+        order => order.status === 'ready' || order.status === 'out-for-delivery'
+      );
+      setCurrentOrders(activeOrders);
+    }
+  }, [activeOrdersData, setCurrentOrders]);
+
+  useEffect(() => {
+    if (eligibleOrdersData?.data?.orders) {
+      setAvailableOrders(eligibleOrdersData.data.orders);
+    }
+  }, [eligibleOrdersData, setAvailableOrders]);
+
+  // Start location tracking when user is online
+  useRiderLocationTracking();
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsLoading(false);
-    }, 3000);
+    }, 1000); // Reduced loading time since we're fetching real data
 
     return () => clearTimeout(timer);
   }, []);
+
+  const handleAcceptOrder = async (orderId: string) => {
+    if (currentOrders.length >= 3) {
+      Alert.alert('Order Limit', 'You cannot accept more than 3 orders at once. Please deliver some orders first.');
+      return;
+    }
+
+    try {
+      await acceptOrderMutation.mutateAsync(orderId);
+      Alert.alert('Success', 'Order accepted successfully!');
+      refetchActive();
+      refetchAvailable();
+    } catch (err: any) {
+      const errorMessage = err?.message || 'Failed to accept order';
+      const errorCode = err?.response?.data?.error?.code || '';
+      
+      if (errorCode === 'ORDER_ALREADY_ASSIGNED' || errorCode === 'MAX_ORDERS_REACHED') {
+        refetchAvailable();
+        Alert.alert('Order Unavailable', getErrorMessage(errorCode) || errorMessage);
+      } else {
+        Alert.alert('Error', getErrorMessage(errorCode) || errorMessage);
+      }
+    }
+  };
+
+  const handleMarkAsDelivered = async (orderId: string) => {
+    try {
+      await markDeliveredMutation.mutateAsync({ orderId });
+      Alert.alert('Success', 'Order marked as delivered!');
+      refetchActive();
+    } catch (err: any) {
+      const errorMessage = err?.message || 'Failed to mark order as delivered';
+      const errorCode = err?.response?.data?.error?.code || '';
+      Alert.alert('Error', getErrorMessage(errorCode) || errorMessage);
+    }
+  };
+
+  const handlePickUpOrder = async (orderId: string) => {
+    try {
+      await pickUpOrderMutation.mutateAsync(orderId);
+      Alert.alert('Success', 'Order picked up!');
+      refetchActive();
+    } catch (err: any) {
+      const errorMessage = err?.message || 'Failed to pick up order';
+      const errorCode = err?.response?.data?.error?.code || '';
+      Alert.alert('Error', getErrorMessage(errorCode) || errorMessage);
+    }
+  };
 
   const handleNavPress = (key: string) => {
     setActiveNav(key);
@@ -100,7 +215,7 @@ export default function HomeScreen() {
             <View style={styles.avatar}>
               {/* Profile picture placeholder */}
             </View>
-            <Text style={styles.greeting}>Hello 👋, Ayo</Text>
+            <Text style={styles.greeting}>Hello 👋, {riderName}</Text>
           </View>
           <Pressable style={styles.notificationButton}>
             <Feather name="bell" size={22} color="#1F1F1F" />
@@ -172,7 +287,12 @@ export default function HomeScreen() {
               })}
             </View>
           </View>
-          {currentOrders.length === 0 ? (
+          {isLoadingActive ? (
+            <View style={styles.ordersContainer}>
+              <ActivityIndicator size="large" color="#2DBE7E" />
+              <Text style={styles.loadingText}>Loading active orders...</Text>
+            </View>
+          ) : currentOrders.length === 0 ? (
             <View style={styles.ordersContainer}>
               <Text style={styles.emptyStateText}>
                 You do not have any current active orders. Accept any available orders(up to 3) to see them here.
@@ -206,12 +326,42 @@ export default function HomeScreen() {
                     <View style={styles.timeButton}>
                       <Text style={styles.timeButtonText}>{order.time}</Text>
                     </View>
-                    <Pressable
-                      style={styles.deliveredButton}
-                      onPress={() => markAsDelivered(order.id)}>
-                      <Text style={styles.deliveredButtonText}>Mark as delivered</Text>
-                      <Ionicons name="checkmark" size={18} color="#1F1F1F" />
-                    </Pressable>
+                    {order.fullOrder?.status === 'ready' && (
+                      <Pressable
+                        style={[
+                          styles.deliveredButton,
+                          pickUpOrderMutation.isPending && styles.deliveredButtonDisabled,
+                        ]}
+                        onPress={() => handlePickUpOrder(order.id)}
+                        disabled={pickUpOrderMutation.isPending}>
+                        {pickUpOrderMutation.isPending ? (
+                          <ActivityIndicator size="small" color="#1F1F1F" />
+                        ) : (
+                          <>
+                            <Text style={styles.deliveredButtonText}>Pick Up</Text>
+                            <Ionicons name="checkmark" size={18} color="#1F1F1F" />
+                          </>
+                        )}
+                      </Pressable>
+                    )}
+                    {order.fullOrder?.status === 'out-for-delivery' && (
+                      <Pressable
+                        style={[
+                          styles.deliveredButton,
+                          markDeliveredMutation.isPending && styles.deliveredButtonDisabled,
+                        ]}
+                        onPress={() => handleMarkAsDelivered(order.id)}
+                        disabled={markDeliveredMutation.isPending}>
+                        {markDeliveredMutation.isPending ? (
+                          <ActivityIndicator size="small" color="#1F1F1F" />
+                        ) : (
+                          <>
+                            <Text style={styles.deliveredButtonText}>Mark as delivered</Text>
+                            <Ionicons name="checkmark" size={18} color="#1F1F1F" />
+                          </>
+                        )}
+                      </Pressable>
+                    )}
                   </View>
                 </View>
               ))}
@@ -231,7 +381,12 @@ export default function HomeScreen() {
               </Pressable>
             )}
           </View>
-          {availableOrders.length === 0 ? (
+          {isLoadingAvailable ? (
+            <View style={styles.ordersContainer}>
+              <ActivityIndicator size="large" color="#2DBE7E" />
+              <Text style={styles.loadingText}>Loading available orders...</Text>
+            </View>
+          ) : availableOrders.length === 0 ? (
             <View style={styles.ordersContainer}>
               <Text style={styles.emptyStateText}>
                 No available orders at the moment. Check back later!
@@ -280,15 +435,15 @@ export default function HomeScreen() {
                   <Pressable
                     style={[
                       styles.pickOrderButton,
-                      currentOrders.length >= 3 && styles.pickOrderButtonDisabled,
+                      (currentOrders.length >= 3 || acceptOrderMutation.isPending) && styles.pickOrderButtonDisabled,
                     ]}
-                    onPress={() => {
-                      if (currentOrders.length < 3) {
-                        addCurrentOrder(order);
-                      }
-                    }}
-                    disabled={currentOrders.length >= 3}>
-                    <Text style={styles.pickOrderButtonText}>Pick Order</Text>
+                    onPress={() => handleAcceptOrder(order.id)}
+                    disabled={currentOrders.length >= 3 || acceptOrderMutation.isPending}>
+                    {acceptOrderMutation.isPending ? (
+                      <ActivityIndicator size="small" color="#1F1F1F" />
+                    ) : (
+                      <Text style={styles.pickOrderButtonText}>Pick Order</Text>
+                    )}
                   </Pressable>
                 </View>
               ))}
@@ -680,6 +835,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: '#7A7A7A',
+    textAlign: 'center',
+  },
+  deliveredButtonDisabled: {
+    opacity: 0.6,
   },
   sectionHeaderWithTabs: {
     flexDirection: 'row',

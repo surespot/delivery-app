@@ -101,7 +101,10 @@ Create a `.env` file in the root directory with the following variables:
 
 ```env
 # API Configuration
-API_URL=your_api_url_here
+EXPO_PUBLIC_API_URL=your_api_url_here
+
+# Google Places API (for reverse geocoding)
+EXPO_PUBLIC_GOOGLE_PLACES_API_KEY=your_google_places_api_key_here
 ```
 
 ## Design Reference

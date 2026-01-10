@@ -3,36 +3,55 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
+    ActivityIndicator,
     Pressable,
     ScrollView,
     StyleSheet,
     Text,
     TextInput,
     View,
+    Alert,
 } from 'react-native';
+import { useLogin } from '@/src/api/onboarding';
 
 export default function LoginScreen() {
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
-  const { setAuthenticated } = useAuthStore();
+  const { setAuthenticated, setUser, setAccessToken } = useAuthStore();
+  const login = useLogin();
 
-  // Mock credentials
-  const MOCK_PHONE = '+2348181234269';
-  const MOCK_PASSWORD = 'Sup3rSecret!';
+  const handleLogin = async () => {
+    if (!emailOrPhone || !password) return;
 
-  const handleLogin = () => {
-    if (emailOrPhone && password) {
-      // Validate mock credentials
-      const normalizedPhone = emailOrPhone.trim().replace(/\s/g, '');
-      if (normalizedPhone === MOCK_PHONE && password === MOCK_PASSWORD) {
+    try {
+      const response = await login.mutateAsync({
+        identifier: emailOrPhone.trim(),
+        password,
+      });
+
+      if (response.data) {
+        if (response.data.tokens?.accessToken) {
+          setAccessToken(response.data.tokens.accessToken);
+        }
+        if (response.data.user) {
+          setUser({
+            id: response.data.user.id,
+            firstName: response.data.user.firstName,
+            lastName: response.data.user.lastName,
+            phone: response.data.user.phone,
+            email: response.data.user.email,
+            avatar: null,
+          });
+        }
         setAuthenticated(true);
-        // Navigate to home screen
         router.replace('/home' as any);
-      } else {
-        setError('Invalid phone number or password');
       }
+    } catch (error) {
+      Alert.alert(
+        'Login Failed',
+        error instanceof Error ? error.message : 'Invalid email/phone or password'
+      );
     }
   };
 
@@ -94,17 +113,15 @@ export default function LoginScreen() {
           </View>
         </View>
 
-        {error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-
         <Pressable
           style={[styles.continueButton, !isFormValid && styles.continueButtonDisabled]}
           onPress={handleLogin}
-          disabled={!isFormValid}>
-          <Text style={styles.continueButtonText}>Continue</Text>
+          disabled={!isFormValid || login.isPending}>
+          {login.isPending ? (
+            <ActivityIndicator size="small" color="#1F1F1F" />
+          ) : (
+            <Text style={styles.continueButtonText}>Continue</Text>
+          )}
         </Pressable>
 
         <Pressable style={styles.forgotPasswordContainer} onPress={handleForgotPassword}>

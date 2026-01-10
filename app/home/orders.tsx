@@ -1,8 +1,19 @@
 import { useOrdersStore } from '@/store/orders-store';
+import { 
+  useAssignedOrders, 
+  useEligibleOrders, 
+  useAcceptOrder, 
+  useMarkOrderAsDelivered,
+  useOrdersWebSocket,
+  usePickUpOrder,
+} from '@/src/api/orders/hooks';
+import { getErrorMessage } from '@/src/api/orders/utils';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -23,13 +34,75 @@ export default function OrdersScreen() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('active');
   const [activeNav, setActiveNav] = useState('orders');
+  
   const {
     currentOrders,
     availableOrders,
     completedOrders,
-    markAsDelivered,
-    addCurrentOrder,
+    setCurrentOrders,
+    setAvailableOrders,
+    setCompletedOrders,
   } = useOrdersStore();
+
+  // API hooks for different tabs
+  const { data: activeOrdersData, isLoading: isLoadingActive, refetch: refetchActive } = useAssignedOrders(
+    1, 
+    20, 
+    undefined, // Get all assigned orders (ready + out-for-delivery)
+    activeTab === 'active'
+  );
+  
+  const { data: eligibleOrdersData, isLoading: isLoadingAvailable, refetch: refetchAvailable } = useEligibleOrders(
+    1, 
+    20, 
+    'ready',
+    activeTab === 'available'
+  );
+  
+  const { data: completedOrdersData, isLoading: isLoadingCompleted, refetch: refetchCompleted } = useAssignedOrders(
+    1, 
+    20, 
+    'delivered',
+    activeTab === 'completed'
+  );
+
+  const acceptOrderMutation = useAcceptOrder();
+  const markDeliveredMutation = useMarkOrderAsDelivered();
+  const pickUpOrderMutation = usePickUpOrder();
+
+  // WebSocket connection for real-time updates
+  useOrdersWebSocket(true, {
+    onOrderReady: () => {
+      // Refresh eligible orders when new order becomes ready
+      refetchAvailable();
+    },
+    onError: (err) => {
+      console.error('WebSocket error:', err);
+    },
+  });
+
+  // Update store when API data changes
+  useEffect(() => {
+    if (activeOrdersData?.data?.orders) {
+      // Filter to only show ready and out-for-delivery orders in active tab
+      const activeOrders = activeOrdersData.data.orders.filter(
+        order => order.status === 'ready' || order.status === 'out-for-delivery'
+      );
+      setCurrentOrders(activeOrders);
+    }
+  }, [activeOrdersData, setCurrentOrders]);
+
+  useEffect(() => {
+    if (eligibleOrdersData?.data?.orders) {
+      setAvailableOrders(eligibleOrdersData.data.orders);
+    }
+  }, [eligibleOrdersData, setAvailableOrders]);
+
+  useEffect(() => {
+    if (completedOrdersData?.data?.orders) {
+      setCompletedOrders(completedOrdersData.data.orders);
+    }
+  }, [completedOrdersData, setCompletedOrders]);
 
   const handleNavPress = (key: string) => {
     setActiveNav(key);
@@ -42,7 +115,65 @@ export default function OrdersScreen() {
     }
   };
 
+  const handleAcceptOrder = async (orderId: string) => {
+    if (currentOrders.length >= 3) {
+      Alert.alert('Order Limit', 'You cannot accept more than 3 orders at once. Please deliver some orders first.');
+      return;
+    }
+
+    try {
+      await acceptOrderMutation.mutateAsync(orderId);
+      Alert.alert('Success', 'Order accepted successfully!');
+      refetchActive();
+      refetchAvailable();
+    } catch (err: any) {
+      const errorMessage = err?.message || 'Failed to accept order';
+      const errorCode = err?.response?.data?.error?.code || '';
+      
+      if (errorCode === 'ORDER_ALREADY_ASSIGNED' || errorCode === 'MAX_ORDERS_REACHED') {
+        refetchAvailable();
+        Alert.alert('Order Unavailable', getErrorMessage(errorCode) || errorMessage);
+      } else {
+        Alert.alert('Error', getErrorMessage(errorCode) || errorMessage);
+      }
+    }
+  };
+
+  const handleMarkAsDelivered = async (orderId: string) => {
+    try {
+      await markDeliveredMutation.mutateAsync({ orderId });
+      Alert.alert('Success', 'Order marked as delivered!');
+      refetchActive();
+      refetchCompleted();
+    } catch (err: any) {
+      const errorMessage = err?.message || 'Failed to mark order as delivered';
+      const errorCode = err?.response?.data?.error?.code || '';
+      Alert.alert('Error', getErrorMessage(errorCode) || errorMessage);
+    }
+  };
+
+  const handlePickUpOrder = async (orderId: string) => {
+    try {
+      await pickUpOrderMutation.mutateAsync(orderId);
+      Alert.alert('Success', 'Order picked up!');
+      refetchActive();
+    } catch (err: any) {
+      const errorMessage = err?.message || 'Failed to pick up order';
+      const errorCode = err?.response?.data?.error?.code || '';
+      Alert.alert('Error', getErrorMessage(errorCode) || errorMessage);
+    }
+  };
+
   const renderActiveOrders = () => {
+    if (isLoadingActive) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2DBE7E" />
+          <Text style={styles.loadingText}>Loading active orders...</Text>
+        </View>
+      );
+    }
+
     if (currentOrders.length === 0) {
       return (
         <View>
@@ -81,12 +212,42 @@ export default function OrdersScreen() {
               <View style={styles.timeButton}>
                 <Text style={styles.timeButtonText}>{order.time}</Text>
               </View>
-              <Pressable
-                style={styles.deliveredButton}
-                onPress={() => markAsDelivered(order.id)}>
-                <Text style={styles.deliveredButtonText}>Mark as delivered</Text>
-                <Ionicons name="checkmark" size={18} color="#1F1F1F" />
-              </Pressable>
+              {order.fullOrder?.status === 'ready' && (
+                <Pressable
+                  style={[
+                    styles.deliveredButton,
+                    pickUpOrderMutation.isPending && styles.deliveredButtonDisabled,
+                  ]}
+                  onPress={() => handlePickUpOrder(order.id)}
+                  disabled={pickUpOrderMutation.isPending}>
+                  {pickUpOrderMutation.isPending ? (
+                    <ActivityIndicator size="small" color="#1F1F1F" />
+                  ) : (
+                    <>
+                      <Text style={styles.deliveredButtonText}>Pick Up</Text>
+                      <Ionicons name="checkmark" size={18} color="#1F1F1F" />
+                    </>
+                  )}
+                </Pressable>
+              )}
+              {order.fullOrder?.status === 'out-for-delivery' && (
+                <Pressable
+                  style={[
+                    styles.deliveredButton,
+                    markDeliveredMutation.isPending && styles.deliveredButtonDisabled,
+                  ]}
+                  onPress={() => handleMarkAsDelivered(order.id)}
+                  disabled={markDeliveredMutation.isPending}>
+                  {markDeliveredMutation.isPending ? (
+                    <ActivityIndicator size="small" color="#1F1F1F" />
+                  ) : (
+                    <>
+                      <Text style={styles.deliveredButtonText}>Mark as delivered</Text>
+                      <Ionicons name="checkmark" size={18} color="#1F1F1F" />
+                    </>
+                  )}
+                </Pressable>
+              )}
             </View>
           </View>
         ))}
@@ -95,6 +256,15 @@ export default function OrdersScreen() {
   };
 
   const renderAvailableOrders = () => {
+    if (isLoadingAvailable) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2DBE7E" />
+          <Text style={styles.loadingText}>Loading available orders...</Text>
+        </View>
+      );
+    }
+
     if (availableOrders.length === 0) {
       return (
         <View>
@@ -148,15 +318,15 @@ export default function OrdersScreen() {
             <Pressable
               style={[
                 styles.pickOrderButton,
-                currentOrders.length >= 3 && styles.pickOrderButtonDisabled,
+                (currentOrders.length >= 3 || acceptOrderMutation.isPending) && styles.pickOrderButtonDisabled,
               ]}
-              onPress={() => {
-                if (currentOrders.length < 3) {
-                  addCurrentOrder(order);
-                }
-              }}
-              disabled={currentOrders.length >= 3}>
-              <Text style={styles.pickOrderButtonText}>Pick Order</Text>
+              onPress={() => handleAcceptOrder(order.id)}
+              disabled={currentOrders.length >= 3 || acceptOrderMutation.isPending}>
+              {acceptOrderMutation.isPending ? (
+                <ActivityIndicator size="small" color="#1F1F1F" />
+              ) : (
+                <Text style={styles.pickOrderButtonText}>Pick Order</Text>
+              )}
             </Pressable>
           </View>
         ))}
@@ -165,6 +335,15 @@ export default function OrdersScreen() {
   };
 
   const renderCompletedOrders = () => {
+    if (isLoadingCompleted) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2DBE7E" />
+          <Text style={styles.loadingText}>Loading completed orders...</Text>
+        </View>
+      );
+    }
+
     if (completedOrders.length === 0) {
       return (
         <View>
@@ -492,6 +671,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     paddingVertical: 40,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: '#7A7A7A',
+  },
+  deliveredButtonDisabled: {
+    opacity: 0.6,
   },
   bottomNav: {
     position: 'absolute',
