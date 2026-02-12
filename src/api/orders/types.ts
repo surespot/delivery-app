@@ -115,6 +115,7 @@ export type AcceptOrderResponse = ApiResponse<Order>;
 
 // Mark Order as Delivered Request
 export interface MarkDeliveredRequest {
+  confirmationCode: string; // Required: 4 digits
   message?: string; // max 500 chars
   latitude?: number; // -90 to 90
   longitude?: number; // -180 to 180
@@ -150,6 +151,14 @@ export interface OrderReadyEvent {
   timestamp: string;
 }
 
+// WebSocket Order Picked Up Event
+export interface OrderPickedUpEvent {
+  orderId: string;
+  orderNumber: string;
+  message: string;
+  timestamp: string;
+}
+
 // Error Codes
 export enum OrdersErrorCode {
   RIDER_PROFILE_NOT_FOUND = 'RIDER_PROFILE_NOT_FOUND',
@@ -163,4 +172,6 @@ export enum OrdersErrorCode {
   INVALID_ORDER_STATUS = 'INVALID_ORDER_STATUS',
   ORDER_NOT_ASSIGNED = 'ORDER_NOT_ASSIGNED',
   ORDER_NOT_ASSIGNED_TO_RIDER = 'ORDER_NOT_ASSIGNED_TO_RIDER',
+  CONFIRMATION_CODE_MISSING = 'CONFIRMATION_CODE_MISSING',
+  INVALID_CONFIRMATION_CODE = 'INVALID_CONFIRMATION_CODE',
 }

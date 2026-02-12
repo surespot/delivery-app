@@ -178,6 +178,48 @@ export interface LogoutResponse {
   message: string;
 }
 
+// Upload Avatar Types
+export interface UploadAvatarData {
+  avatar: string;
+}
+
+export type UploadAvatarResponse = ApiResponse<UploadAvatarData>;
+
+// Password Reset Types
+export interface SendPasswordResetOtpRequest {
+  phone: string;
+}
+
+export interface SendPasswordResetEmailOtpRequest {
+  email: string;
+}
+
+export interface VerifyPasswordResetOtpRequest {
+  phone: string;
+  otp: string;
+}
+
+export interface VerifyPasswordResetEmailOtpRequest {
+  email: string;
+  otp: string;
+}
+
+export interface VerifyPasswordResetOtpResponse {
+  resetToken: string;
+  expiresIn: number;
+}
+
+export interface UpdatePasswordRequest {
+  newPassword: string;
+  confirmPassword: string;
+}
+
+export interface UpdatePasswordResponse {
+  tokens: Tokens;
+}
+
+export type UpdatePasswordResponseType = ApiResponse<UpdatePasswordResponse>;
+
 // Error Codes
 export enum ErrorCode {
   INVALID_REGISTRATION_CODE = 'INVALID_REGISTRATION_CODE',

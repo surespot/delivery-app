@@ -4,6 +4,7 @@ import { ordersApi } from './client';
 import type {
   MarkDeliveredRequest,
   OrderReadyEvent,
+  OrderPickedUpEvent,
   OrderStatus,
 } from './types';
 import {
@@ -146,6 +147,14 @@ export const useOrdersWebSocket = (
           exact: false 
         });
         callbacks.onOrderReady?.(data);
+      },
+      onOrderPickedUp: (data: OrderPickedUpEvent) => {
+        // Invalidate assigned orders to update status
+        queryClient.invalidateQueries({ 
+          queryKey: ['orders', 'assigned'],
+          exact: false 
+        });
+        callbacks.onOrderPickedUp?.(data);
       },
       onConnected: (data) => {
         callbacks.onConnected?.(data);

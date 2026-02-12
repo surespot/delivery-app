@@ -96,6 +96,10 @@ export default function HomeLayout() {
         name="support-recents"
         options={{ headerShown: false }}
       />
+      <Stack.Screen
+        name="delivery-details"
+        options={{ headerShown: false }}
+      />
     </Stack>
   );
 }

@@ -5,7 +5,6 @@ import {
   useEligibleOrders,
   useMarkOrderAsDelivered,
   useOrdersWebSocket,
-  usePickUpOrder,
 } from '@/src/api/orders/hooks';
 import { getErrorMessage } from '@/src/api/orders/utils';
 import { useRiderLocationTracking } from '@/src/hooks/use-rider-location';
@@ -13,14 +12,17 @@ import { useAuthStore } from '@/store/auth-store';
 import { useOrdersStore } from '@/store/orders-store';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -31,16 +33,24 @@ const NAV_ITEMS = [
   { key: 'profile', label: 'Profile', icon: 'user' },
 ];
 
+const CODE_LENGTH = 4;
+
 export default function HomeScreen() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const { isOnline, setIsOnline } = useAuthStore();
   const [activeNav, setActiveNav] = useState('home');
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [confirmationCode, setConfirmationCode] = useState('');
+  const [codeError, setCodeError] = useState('');
+  const codeInputRef = useRef<TextInput>(null);
   const {
     currentOrders,
     availableOrders,
     setCurrentOrders,
     setAvailableOrders,
+    markAsPickedUp,
   } = useOrdersStore();
 
   // API hooks
@@ -60,17 +70,28 @@ export default function HomeScreen() {
 
   const acceptOrderMutation = useAcceptOrder();
   const markDeliveredMutation = useMarkOrderAsDelivered();
-  const pickUpOrderMutation = usePickUpOrder();
 
-  // Get current rider profile for name
+  // Get current rider profile for name and avatar
   const { data: riderProfileData } = useGetCurrentRiderProfile(isOnline);
   const riderName = riderProfileData?.data?.firstName || 'Rider';
+  const { user } = useAuthStore();
+  const avatarUrl = user?.avatar || riderProfileData?.data?.avatar || null;
+  const initials = user
+    ? `${(user.firstName?.[0] ?? '').toUpperCase()}${(user.lastName?.[0] ?? '').toUpperCase()}`
+    : riderProfileData?.data
+    ? `${(riderProfileData.data.firstName?.[0] ?? '').toUpperCase()}${(riderProfileData.data.lastName?.[0] ?? '').toUpperCase()}`
+    : 'R';
 
   // WebSocket connection for real-time updates
   useOrdersWebSocket(isOnline, {
     onOrderReady: () => {
       // Refresh eligible orders when new order becomes ready
       refetchAvailable();
+    },
+    onOrderPickedUp: ({ orderId }) => {
+      // Update order status when admin marks as picked up
+      markAsPickedUp(orderId);
+      refetchActive();
     },
     onError: (err) => {
       console.error('WebSocket error:', err);
@@ -129,28 +150,53 @@ export default function HomeScreen() {
     }
   };
 
-  const handleMarkAsDelivered = async (orderId: string) => {
+  const handleMarkAsDelivered = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    setConfirmationCode('');
+    setCodeError('');
+    setShowConfirmationModal(true);
+  };
+
+  const handleConfirmDelivery = async () => {
+    if (!selectedOrderId) return;
+
+    // Validate code format
+    if (!/^[0-9]{4}$/.test(confirmationCode)) {
+      setCodeError('Code must be exactly 4 digits');
+      return;
+    }
+
     try {
-      await markDeliveredMutation.mutateAsync({ orderId });
+      await markDeliveredMutation.mutateAsync({
+        orderId: selectedOrderId,
+        data: { confirmationCode },
+      });
+      setShowConfirmationModal(false);
       Alert.alert('Success', 'Order marked as delivered!');
       refetchActive();
     } catch (err: any) {
-      const errorMessage = err?.message || 'Failed to mark order as delivered';
       const errorCode = err?.response?.data?.error?.code || '';
-      Alert.alert('Error', getErrorMessage(errorCode) || errorMessage);
+      
+      if (errorCode === 'INVALID_CONFIRMATION_CODE') {
+        setCodeError('Invalid code. Please verify with customer.');
+        setConfirmationCode('');
+      } else {
+        const errorMessage = err?.message || 'Failed to mark order as delivered';
+        setCodeError(getErrorMessage(errorCode) || errorMessage);
+      }
     }
   };
 
-  const handlePickUpOrder = async (orderId: string) => {
-    try {
-      await pickUpOrderMutation.mutateAsync(orderId);
-      Alert.alert('Success', 'Order picked up!');
-      refetchActive();
-    } catch (err: any) {
-      const errorMessage = err?.message || 'Failed to pick up order';
-      const errorCode = err?.response?.data?.error?.code || '';
-      Alert.alert('Error', getErrorMessage(errorCode) || errorMessage);
-    }
+  const handleCodeChange = (value: string) => {
+    const sanitized = value.replace(/[^0-9]/g, '').slice(0, CODE_LENGTH);
+    setConfirmationCode(sanitized);
+    setCodeError('');
+  };
+
+  const focusConfirmationInput = () => {
+    codeInputRef.current?.focus();
+    setTimeout(() => codeInputRef.current?.focus(), 120);
+    setTimeout(() => codeInputRef.current?.focus(), 320);
   };
 
   const handleNavPress = (key: string) => {
@@ -213,7 +259,11 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <View style={styles.profileSection}>
             <View style={styles.avatar}>
-              {/* Profile picture placeholder */}
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarText}>{initials}</Text>
+              )}
             </View>
             <Text style={styles.greeting}>Hello 👋, {riderName}</Text>
           </View>
@@ -301,12 +351,13 @@ export default function HomeScreen() {
           ) : (
             <View style={styles.ordersContainer}>
               {currentOrders.map((order, index) => (
-                <View
+                <Pressable
                   key={order.id}
                   style={[
                     styles.orderDetailsBox,
                     index === currentOrders.length - 1 && styles.orderDetailsBoxLast,
-                  ]}>
+                  ]}
+                  onPress={() => router.push(`/home/delivery-details?orderId=${order.id}` as any)}>
                   <View style={styles.routeContainer}>
                     <View style={styles.routeItem}>
                       <View style={styles.routeIcon}>
@@ -327,22 +378,12 @@ export default function HomeScreen() {
                       <Text style={styles.timeButtonText}>{order.time}</Text>
                     </View>
                     {order.fullOrder?.status === 'ready' && (
-                      <Pressable
-                        style={[
-                          styles.deliveredButton,
-                          pickUpOrderMutation.isPending && styles.deliveredButtonDisabled,
-                        ]}
-                        onPress={() => handlePickUpOrder(order.id)}
-                        disabled={pickUpOrderMutation.isPending}>
-                        {pickUpOrderMutation.isPending ? (
-                          <ActivityIndicator size="small" color="#1F1F1F" />
-                        ) : (
-                          <>
-                            <Text style={styles.deliveredButtonText}>Pick Up</Text>
-                            <Ionicons name="checkmark" size={18} color="#1F1F1F" />
-                          </>
-                        )}
-                      </Pressable>
+                      <View style={styles.pickupStatusPill}>
+                        <Feather name="clock" size={16} color="#4F4F4F" />
+                        <Text style={styles.pickupStatusText}>
+                          Waiting for pickup confirmation
+                        </Text>
+                      </View>
                     )}
                     {order.fullOrder?.status === 'out-for-delivery' && (
                       <Pressable
@@ -363,7 +404,7 @@ export default function HomeScreen() {
                       </Pressable>
                     )}
                   </View>
-                </View>
+                </Pressable>
               ))}
             </View>
           )}
@@ -395,12 +436,13 @@ export default function HomeScreen() {
           ) : (
             <View style={styles.ordersContainer}>
               {availableOrders.slice(0, 3).map((order, index, array) => (
-                <View
+                <Pressable
                   key={order.id}
                   style={[
                     styles.orderDetailsBox,
                     index === array.length - 1 && styles.orderDetailsBoxLast,
-                  ]}>
+                  ]}
+                  onPress={() => router.push(`/home/delivery-details?orderId=${order.id}` as any)}>
                   <View style={styles.routeContainer}>
                     <View style={styles.routeItem}>
                       <View style={styles.routeIcon}>
@@ -445,13 +487,65 @@ export default function HomeScreen() {
                       <Text style={styles.pickOrderButtonText}>Pick Order</Text>
                     )}
                   </Pressable>
-                </View>
+                </Pressable>
               ))}
             </View>
           )}
         </View>
         )}
       </ScrollView>
+
+      {/* Confirmation Code Modal */}
+      <Modal
+        visible={showConfirmationModal}
+        transparent
+        animationType="fade"
+        onShow={focusConfirmationInput}
+        onRequestClose={() => setShowConfirmationModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Delivery Confirmation</Text>
+            <Text style={styles.modalDescription}>
+              Ask customer for their 4-digit confirmation code
+            </Text>
+
+            <TextInput
+              ref={codeInputRef}
+              value={confirmationCode}
+              onChangeText={handleCodeChange}
+              keyboardType="number-pad"
+              showSoftInputOnFocus
+              maxLength={CODE_LENGTH}
+              style={styles.codeInput}
+              autoFocus
+            />
+
+            {codeError ? <Text style={styles.codeErrorText}>{codeError}</Text> : null}
+
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={styles.modalCancelButton}
+                onPress={() => setShowConfirmationModal(false)}>
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.modalConfirmButton,
+                  (confirmationCode.length !== CODE_LENGTH || markDeliveredMutation.isPending) &&
+                    styles.modalConfirmButtonDisabled,
+                ]}
+                onPress={handleConfirmDelivery}
+                disabled={confirmationCode.length !== CODE_LENGTH || markDeliveredMutation.isPending}>
+                {markDeliveredMutation.isPending ? (
+                  <ActivityIndicator size="small" color="#1F1F1F" />
+                ) : (
+                  <Text style={styles.modalConfirmButtonText}>Confirm Delivery</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Bottom Navigation Bar */}
       <View style={styles.bottomNav}>
@@ -582,6 +676,19 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     backgroundColor: '#E0E0E0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 24,
+  },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F1F1F',
   },
   greeting: {
     fontSize: 18,
@@ -845,6 +952,22 @@ const styles = StyleSheet.create({
   deliveredButtonDisabled: {
     opacity: 0.6,
   },
+  pickupStatusPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#F2F2F2',
+    gap: 6,
+  },
+  pickupStatusText: {
+    fontSize: 12,
+    color: '#4F4F4F',
+    fontWeight: '500',
+  },
   sectionHeaderWithTabs: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -898,6 +1021,114 @@ const styles = StyleSheet.create({
   },
   navLabelActive: {
     color: '#1f1f1f',
+  },
+  // Confirmation Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F1F1F',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: '#7A7A7A',
+    marginBottom: 24,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  codeBoxRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  codeBox: {
+    width: 56,
+    height: 64,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#d9d9d9',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  codeBoxFilled: {
+    borderColor: '#bfbfbf',
+  },
+  codeBoxActive: {
+    borderColor: '#FFD700',
+  },
+  codeBoxText: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#1f1f1f',
+  },
+  codeErrorText: {
+    color: '#D32F2F',
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  codeInput: {
+    alignSelf: 'center',
+    width: 220,
+    paddingBottom: 8,
+    marginBottom: 16,
+    borderBottomWidth: 2,
+    borderBottomColor: '#D9D9D9',
+    textAlign: 'center',
+    fontSize: 28,
+    letterSpacing: 12,
+    fontFamily: 'monospace',
+    color: '#1F1F1F',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 999,
+    backgroundColor: '#E0E0E0',
+    alignItems: 'center',
+  },
+  modalCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4F4F4F',
+  },
+  modalConfirmButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 999,
+    backgroundColor: '#2DBE7E',
+    alignItems: 'center',
+  },
+  modalConfirmButtonDisabled: {
+    backgroundColor: '#E0E0E0',
+    opacity: 0.6,
+  },
+  modalConfirmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F1F1F',
   },
 });
 

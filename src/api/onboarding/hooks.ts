@@ -1,12 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { clearTokens, getRefreshToken, onboardingApi, saveAuthToken, saveRefreshToken, saveVerificationToken } from './client';
+import {
+  clearTokens,
+  getRefreshToken,
+  onboardingApi,
+  saveAuthToken,
+  saveRefreshToken,
+  saveVerificationToken,
+} from './client';
 import type {
-    CompleteRegistrationRequest,
-    CreatePasswordRequest,
-    InitiateRegistrationRequest,
-    LoginRequest,
-    UpdateScheduleRequest,
-    VerifyOtpRequest
+  CompleteRegistrationRequest,
+  CreatePasswordRequest,
+  InitiateRegistrationRequest,
+  LoginRequest,
+  UpdateScheduleRequest,
+  VerifyOtpRequest,
 } from './types';
 
 // Query Keys
@@ -250,6 +257,95 @@ export const useLogout = () => {
       await clearTokens();
       // Clear all queries
       queryClient.clear();
+    },
+  });
+};
+
+// Password Reset Hooks
+
+/**
+ * Send password reset OTP via phone
+ */
+export const useSendPasswordResetOtp = () => {
+  return useMutation({
+    mutationFn: (data: { phone: string }) =>
+      onboardingApi.sendPasswordResetOtp(data),
+  });
+};
+
+/**
+ * Verify password reset OTP via phone
+ */
+export const useVerifyPasswordResetOtp = () => {
+  return useMutation({
+    mutationFn: (data: { phone: string; otp: string }) =>
+      onboardingApi.verifyPasswordResetOtp(data),
+  });
+};
+
+/**
+ * Send password reset OTP via email
+ */
+export const useSendPasswordResetEmailOtp = () => {
+  return useMutation({
+    mutationFn: (data: { email: string }) =>
+      onboardingApi.sendPasswordResetEmailOtp(data),
+  });
+};
+
+/**
+ * Verify password reset OTP via email
+ */
+export const useVerifyPasswordResetEmailOtp = () => {
+  return useMutation({
+    mutationFn: (data: { email: string; otp: string }) =>
+      onboardingApi.verifyPasswordResetEmailOtp(data),
+  });
+};
+
+/**
+ * Update password after reset
+ */
+export const useUpdatePassword = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      data,
+      resetToken,
+    }: {
+      data: import('./types').UpdatePasswordRequest;
+      resetToken: string;
+    }) => onboardingApi.updatePassword(data, resetToken),
+    onSuccess: async (response) => {
+      if (response.data?.tokens) {
+        if (response.data.tokens.accessToken) {
+          await saveAuthToken(response.data.tokens.accessToken);
+        }
+        if (response.data.tokens.refreshToken) {
+          await saveRefreshToken(response.data.tokens.refreshToken);
+        }
+        // Invalidate queries to refetch user data
+        queryClient.invalidateQueries({
+          queryKey: onboardingKeys.currentRider(),
+        });
+      }
+    },
+  });
+};
+
+/**
+ * Upload profile avatar
+ */
+export const useUploadAvatar = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: { uri: string; type: string; name: string }) =>
+      onboardingApi.uploadAvatar(file),
+    onSuccess: () => {
+      // Invalidate current rider profile to refresh avatar URL
+      queryClient.invalidateQueries({
+        queryKey: onboardingKeys.currentRider(),
+      });
     },
   });
 };

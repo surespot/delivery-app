@@ -1,12 +1,12 @@
 import { apiRequest } from '../onboarding/client';
 import type {
-  AcceptOrderRequest,
-  AcceptOrderResponse,
-  AssignedOrdersResponse,
-  EligibleOrdersResponse,
-  MarkDeliveredRequest,
-  MarkDeliveredResponse,
-  PickUpOrderResponse,
+    AcceptOrderRequest,
+    AcceptOrderResponse,
+    AssignedOrdersResponse,
+    EligibleOrdersResponse,
+    MarkDeliveredRequest,
+    MarkDeliveredResponse,
+    PickUpOrderResponse,
 } from './types';
 
 export const ordersApi = {
@@ -36,13 +36,33 @@ export const ordersApi = {
   /**
    * Accept an order
    * POST /orders/rider/accept
+   *
+   * Logs both the request payload and the full response for debugging.
    */
-  acceptOrder: (orderId: string): Promise<AcceptOrderResponse> => {
-    return apiRequest<AcceptOrderResponse['data']>('/orders/rider/accept', {
-      method: 'POST',
-      body: { orderId } as AcceptOrderRequest,
-      requiresAuth: true,
-    }) as Promise<AcceptOrderResponse>;
+  acceptOrder: async (orderId: string): Promise<AcceptOrderResponse> => {
+    const payload = { orderId } as AcceptOrderRequest;
+
+    console.log('[ordersApi.acceptOrder] Request →', {
+      url: '/orders/rider/accept',
+      body: payload,
+    });
+
+    try {
+      const response = (await apiRequest<AcceptOrderResponse['data']>(
+        '/orders/rider/accept',
+        {
+          method: 'POST',
+          body: payload,
+          requiresAuth: true,
+        }
+      )) as AcceptOrderResponse;
+
+      console.log('[ordersApi.acceptOrder] Response ←', response);
+      return response;
+    } catch (error) {
+      console.log('[ordersApi.acceptOrder] Error ✕', error);
+      throw error;
+    }
   },
 
   /**
@@ -74,18 +94,25 @@ export const ordersApi = {
    * Mark order as delivered
    * POST /orders/rider/:orderId/delivered
    */
-  markOrderAsDelivered: (
+  markOrderAsDelivered: async (
     orderId: string,
     data?: MarkDeliveredRequest
   ): Promise<MarkDeliveredResponse> => {
-    return apiRequest<MarkDeliveredResponse['data']>(
+    const payload = data || {};
+
+    console.log('[ordersApi.markOrderAsDelivered] Request →', {
+      url: `/orders/rider/${orderId}/delivered`,
+      body: payload,
+    });
+
+    return (await apiRequest<MarkDeliveredResponse['data']>(
       `/orders/rider/${orderId}/delivered`,
       {
         method: 'POST',
-        body: data || {},
+        body: payload,
         requiresAuth: true,
       }
-    ) as Promise<MarkDeliveredResponse>;
+    )) as Promise<MarkDeliveredResponse>;
   },
 
   /**

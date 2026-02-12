@@ -351,4 +351,127 @@ export const onboardingApi = {
       body: data,
       requiresAuth: true,
     }),
+
+  // Upload profile avatar (multipart/form-data)
+  uploadAvatar: async (file: {
+    uri: string;
+    type: string;
+    name: string;
+  }): Promise<ApiResponse<import('./types').UploadAvatarData>> => {
+    try {
+      const token = await getAuthToken();
+      const formData = new FormData();
+
+      formData.append('image', {
+        uri: file.uri,
+        type: file.type,
+        name: file.name,
+      } as any);
+
+      const response = await fetch(`${BASE_URL}/auth/profile/avatar`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      });
+
+      const data: ApiResponse<import('./types').UploadAvatarData> =
+        await response.json();
+
+      if (!response.ok || !data.success) {
+        const message =
+          data.error?.message ||
+          (response.status === 400
+            ? 'Invalid image. Please upload a JPEG, PNG, or WebP file under 5MB.'
+            : 'Failed to upload profile picture');
+        throw new Error(message);
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Network error occurred while uploading avatar');
+    }
+  },
+
+  // Send password reset OTP (phone)
+  sendPasswordResetOtp: (
+    data: import('./types').SendPasswordResetOtpRequest
+  ) =>
+    apiRequest<import('./types').SendOtpResponse>(
+      '/auth/password/reset/send-otp',
+      {
+        method: 'POST',
+        body: data,
+      }
+    ),
+
+  // Verify password reset OTP (phone)
+  verifyPasswordResetOtp: (
+    data: import('./types').VerifyPasswordResetOtpRequest
+  ) =>
+    apiRequest<import('./types').VerifyPasswordResetOtpResponse>(
+      '/auth/password/reset/verify-otp',
+      {
+        method: 'POST',
+        body: data,
+      }
+    ),
+
+  // Send password reset OTP (email)
+  sendPasswordResetEmailOtp: (
+    data: import('./types').SendPasswordResetEmailOtpRequest
+  ) =>
+    apiRequest<import('./types').SendOtpResponse>(
+      '/auth/password/reset/email/send-otp',
+      {
+        method: 'POST',
+        body: data,
+      }
+    ),
+
+  // Verify password reset OTP (email)
+  verifyPasswordResetEmailOtp: (
+    data: import('./types').VerifyPasswordResetEmailOtpRequest
+  ) =>
+    apiRequest<import('./types').VerifyPasswordResetOtpResponse>(
+      '/auth/password/reset/email/verify-otp',
+      {
+        method: 'POST',
+        body: data,
+      }
+    ),
+
+  // Update password after reset
+  updatePassword: async (
+    data: import('./types').UpdatePasswordRequest,
+    resetToken: string
+  ): Promise<import('./types').UpdatePasswordResponseType> => {
+    const url = `${BASE_URL}/auth/password/reset/update`;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      'X-Reset-Token': resetToken,
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data),
+    });
+
+    const result: ApiResponse<import('./types').UpdatePasswordResponse> =
+      await response.json();
+
+    if (!response.ok) {
+      if (!result.success && result.error) {
+        throw new Error(result.error.message || 'An error occurred');
+      }
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return result as import('./types').UpdatePasswordResponseType;
+  },
 };

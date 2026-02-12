@@ -31,6 +31,7 @@ interface OrdersState {
   addCurrentOrder: (order: Order) => void;
   removeCurrentOrder: (orderId: string) => void;
   removeAvailableOrder: (orderId: string) => void;
+  markAsPickedUp: (orderId: string) => void;
   markAsDelivered: (orderId: string) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -84,6 +85,26 @@ export const useOrdersStore = create<OrdersState>((set) => ({
     set((state) => ({
       availableOrders: state.availableOrders.filter((o) => o.id !== orderId),
     })),
+
+  markAsPickedUp: (orderId) =>
+    set((state) => {
+      const updateOrder = (o: Order): Order =>
+        o.id === orderId && o.fullOrder
+          ? {
+              ...o,
+              fullOrder: {
+                ...o.fullOrder,
+                status: 'out-for-delivery',
+              },
+            }
+          : o;
+
+      return {
+        currentOrders: state.currentOrders.map(updateOrder),
+        availableOrders: state.availableOrders.map(updateOrder),
+        completedOrders: state.completedOrders,
+      };
+    }),
 
   markAsDelivered: (orderId) =>
     set((state) => {

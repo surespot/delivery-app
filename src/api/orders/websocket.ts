@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { getAuthToken } from '../onboarding/client';
-import type { OrderReadyEvent, WebSocketConnectionResponse } from './types';
+import type { OrderReadyEvent, OrderPickedUpEvent, WebSocketConnectionResponse } from './types';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
 const WS_NAMESPACE = '/orders';
@@ -16,6 +16,7 @@ let registeredCallbacks: Set<OrdersSocketCallbacks> = new Set();
 export interface OrdersSocketCallbacks {
   onConnected?: (data: WebSocketConnectionResponse) => void;
   onOrderReady?: (data: OrderReadyEvent) => void;
+  onOrderPickedUp?: (data: OrderPickedUpEvent) => void;
   onDisconnected?: () => void;
   onError?: (error: Error) => void;
 }
@@ -98,6 +99,12 @@ export async function createOrdersSocket(): Promise<Socket | null> {
     socket.on('order:ready', (data: OrderReadyEvent) => {
       console.log('New order ready:', data);
       notifyCallbacks('onOrderReady', data);
+    });
+
+    // Order picked up event
+    socket.on('order:picked_up', (data: OrderPickedUpEvent) => {
+      console.log('Order picked up:', data);
+      notifyCallbacks('onOrderPickedUp', data);
     });
 
     // Disconnect event

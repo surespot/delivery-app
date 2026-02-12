@@ -11,6 +11,10 @@ export default function AuthLayout() {
         name="identity-verification"
         options={{ headerShown: false }}
       />
+      <Stack.Screen
+        name="forgot-password"
+        options={{ headerShown: false }}
+      />
     </Stack>
   );
 }

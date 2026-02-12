@@ -1,8 +1,11 @@
+import { useUploadAvatar } from '@/src/api/onboarding';
 import { useAuthStore } from '@/store/auth-store';
 import { Feather } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   KeyboardAvoidingView,
@@ -75,13 +78,20 @@ const stageConfig: Record<Stage, { title: string; backTo: Stage | null }> = {
 export default function AccountInformationScreen() {
   const router = useRouter();
   const { user, updateUser } = useAuthStore();
+  const uploadAvatar = useUploadAvatar();
+
+  // Redirect if user is not available
+  if (!user) {
+    router.replace('/auth/login' as any);
+    return null;
+  }
 
   // Stage management
   const [stage, setStage] = useState<Stage>('overview');
 
   // Edit info state
-  const [firstName, setFirstName] = useState(user.firstName);
-  const [lastName, setLastName] = useState(user.lastName);
+  const [firstName, setFirstName] = useState(user?.firstName || '');
+  const [lastName, setLastName] = useState(user?.lastName || '');
   const [isSaving, setIsSaving] = useState(false);
 
   // Change phone state
@@ -123,12 +133,14 @@ export default function AccountInformationScreen() {
 
   // Sync form state when user changes
   useEffect(() => {
-    setFirstName(user.firstName);
-    setLastName(user.lastName);
+    if (user) {
+      setFirstName(user.firstName);
+      setLastName(user.lastName);
+    }
   }, [user]);
 
   const hasInfoChanges =
-    firstName !== user.firstName || lastName !== user.lastName;
+    user && (firstName !== user.firstName || lastName !== user.lastName);
   const isValidEmail = newEmail.trim() ? validateEmail(newEmail) : false;
   const isValidPhone = newPhone.trim().length >= 10;
   const isOtpReady = otp.length === CODE_LENGTH && !isSubmitting;
@@ -280,7 +292,58 @@ export default function AccountInformationScreen() {
     }
   };
 
-  const initials = `${(user.firstName?.[0] ?? '').toUpperCase()}${(user.lastName?.[0] ?? '').toUpperCase()}`;
+  const initials = user
+    ? `${(user.firstName?.[0] ?? '').toUpperCase()}${(user.lastName?.[0] ?? '').toUpperCase()}`
+    : 'SS';
+
+  const handleChangeAvatar = async () => {
+    try {
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (permissionResult.status !== 'granted') {
+        Alert.alert(
+          'Permission required',
+          'We need access to your photo library to upload a profile picture.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const asset = result.assets[0];
+
+      const file = {
+        uri: asset.uri,
+        type: asset.mimeType || 'image/jpeg',
+        name: asset.fileName || 'avatar.jpg',
+      };
+
+      const response = await uploadAvatar.mutateAsync(file);
+
+      const newAvatar = response.data?.avatar;
+      if (newAvatar) {
+        updateUser({ avatar: newAvatar });
+      }
+
+      Alert.alert('Success', 'Profile picture uploaded successfully');
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to upload profile picture. Please try again.';
+      Alert.alert('Upload failed', message);
+    }
+  };
 
   // Render OTP boxes
   const renderOtpBoxes = () => {
@@ -317,35 +380,44 @@ export default function AccountInformationScreen() {
           <>
             {/* Avatar */}
             <View style={styles.avatarContainer}>
-              <View style={styles.avatar}>
-                {user.avatar ? (
-                  <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
-                ) : (
-                  <Text style={styles.avatarText}>{initials || 'SS'}</Text>
-                )}
-                <View style={styles.avatarOverlay}>
-                  <Feather name="camera" size={20} color="#FFFFFF" />
+              <Pressable onPress={handleChangeAvatar} disabled={uploadAvatar.isPending || !user}>
+                <View style={styles.avatar}>
+                  {user?.avatar ? (
+                    <Image
+                      source={{ uri: user.avatar }}
+                      style={styles.avatarImage}
+                    />
+                  ) : (
+                    <Text style={styles.avatarText}>{initials || 'SS'}</Text>
+                  )}
+                  <View style={styles.avatarOverlay}>
+                    {uploadAvatar.isPending ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Feather name="camera" size={20} color="#FFFFFF" />
+                    )}
+                  </View>
                 </View>
-              </View>
+              </Pressable>
             </View>
 
             {/* Details Section */}
             <View style={styles.detailsSection}>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>First name</Text>
-                <Text style={styles.detailValue}>{user.firstName || 'Not set'}</Text>
+                <Text style={styles.detailValue}>{user?.firstName || 'Not set'}</Text>
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Last name</Text>
-                <Text style={styles.detailValue}>{user.lastName || 'Not set'}</Text>
+                <Text style={styles.detailValue}>{user?.lastName || 'Not set'}</Text>
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Phone number</Text>
-                <Text style={styles.detailValue}>{formatPhone(user.phone)}</Text>
+                <Text style={styles.detailValue}>{user?.phone ? formatPhone(user.phone) : 'Not set'}</Text>
               </View>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Email</Text>
-                <Text style={styles.detailValue}>{user.email || 'Not set'}</Text>
+                <Text style={styles.detailValue}>{user?.email || 'Not set'}</Text>
               </View>
             </View>
 
@@ -434,7 +506,7 @@ export default function AccountInformationScreen() {
               <Text style={styles.label}>Old number</Text>
               <TextInput
                 style={styles.input}
-                value={user.phone?.replace('+', '') || ''}
+                value={user?.phone?.replace('+', '') || ''}
                 editable={false}
                 placeholderTextColor="#9E9E9E"
               />
@@ -474,7 +546,7 @@ export default function AccountInformationScreen() {
               <Text style={styles.label}>Old email</Text>
               <TextInput
                 style={styles.input}
-                value={user.email || ''}
+                value={user?.email || ''}
                 editable={false}
                 placeholderTextColor="#9E9E9E"
               />

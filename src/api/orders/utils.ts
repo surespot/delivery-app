@@ -110,6 +110,8 @@ export function getErrorMessage(errorCode: string): string {
     INVALID_ORDER_STATUS: 'Order status is invalid for this operation.',
     ORDER_NOT_ASSIGNED: 'This order is not assigned to any rider.',
     ORDER_NOT_ASSIGNED_TO_RIDER: 'This order is not assigned to you.',
+    CONFIRMATION_CODE_MISSING: 'Delivery confirmation code not found. Please contact support.',
+    INVALID_CONFIRMATION_CODE: 'Invalid confirmation code. Please verify with the customer.',
   };
 
   return errorMessages[errorCode] || 'An error occurred. Please try again.';

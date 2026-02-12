@@ -1,17 +1,18 @@
 import { useAuthStore } from '@/store/auth-store';
+import { useGetCurrentRiderProfile, useLogout } from '@/src/api/onboarding';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
-import { useGetCurrentRiderProfile, useLogout } from '@/src/api/onboarding';
 
 const NAV_ITEMS = [
   { key: 'home', label: 'Home', icon: 'home' },
@@ -22,13 +23,19 @@ const NAV_ITEMS = [
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { isOnline, setIsOnline, logout } = useAuthStore();
+  const { isOnline, setIsOnline, logout, user } = useAuthStore();
   const [activeNav, setActiveNav] = useState('profile');
   const logoutMutation = useLogout();
   const { data: profileResponse, isLoading: isLoadingProfile } = useGetCurrentRiderProfile();
   
   const profile = profileResponse?.data;
   const stats = profile?.stats?.today;
+
+  const initials = `${(profile?.firstName?.[0] ?? user?.firstName?.[0] ?? 'S').toUpperCase()}${(
+    profile?.lastName?.[0] ?? user?.lastName?.[0] ?? 'S'
+  ).toUpperCase()}`;
+
+  const avatarUri = (user && user.avatar) || (profile as any)?.avatar || null;
 
   const menuItems = [
     {
@@ -113,7 +120,11 @@ export default function ProfileScreen() {
         <View style={styles.profileSection}>
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
-              {/* Avatar placeholder - you can add an image here */}
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarInitials}>{initials}</Text>
+              )}
             </View>
           </View>
           <View style={styles.profileInfo}>
@@ -286,7 +297,18 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 32,
     backgroundColor: '#FFEDB5',
-    // Add image here if needed
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 32,
+  },
+  avatarInitials: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1F1F1F',
   },
   profileInfo: {
     flex: 1,
