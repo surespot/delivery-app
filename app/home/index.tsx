@@ -1,4 +1,5 @@
 import { useGetCurrentRiderProfile } from '@/src/api/onboarding/hooks';
+import { useUnreadCount } from '@/src/api/notifications';
 import {
   useAcceptOrder,
   useAssignedOrders,
@@ -70,6 +71,8 @@ export default function HomeScreen() {
 
   const acceptOrderMutation = useAcceptOrder();
   const markDeliveredMutation = useMarkOrderAsDelivered();
+  const { data: unreadData } = useUnreadCount(isOnline);
+  const unreadCount = unreadData?.data?.unreadCount ?? 0;
 
   // Get current rider profile for name and avatar
   const { data: riderProfileData } = useGetCurrentRiderProfile(isOnline);
@@ -267,11 +270,17 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.greeting}>Hello 👋, {riderName}</Text>
           </View>
-          <Pressable style={styles.notificationButton}>
+          <Pressable
+            style={styles.notificationButton}
+            onPress={() => router.push('/home/notifications' as any)}>
             <Feather name="bell" size={22} color="#1F1F1F" />
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>3</Text>
-            </View>
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
+            )}
           </Pressable>
         </View>
 

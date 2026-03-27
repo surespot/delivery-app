@@ -1,5 +1,4 @@
 import { useSubmitSupportRequest } from '@/src/api/support';
-import { REPORT_ISSUE_MAP } from '@/src/api/support/utils';
 import { useSupportAttachments } from '@/src/hooks/use-support-attachments';
 import { useAuthStore } from '@/store/auth-store';
 import { Feather } from '@expo/vector-icons';
@@ -17,39 +16,53 @@ import {
   View,
 } from 'react-native';
 
-const ISSUE_TYPES = [
-  'Order not delivered',
-  'Wrong items received',
-  'Payment issue',
-  'App crash / Bug',
-  'Account problem',
-  'Other',
+const APP_AREAS = [
+  { id: 'home', label: 'Home' },
+  { id: 'orders', label: 'Orders' },
+  { id: 'wallet', label: 'Wallet' },
+  { id: 'profile', label: 'Profile' },
+  { id: 'delivery-details', label: 'Delivery Details' },
+  { id: 'notifications', label: 'Notifications' },
+  { id: 'chat', label: 'Chat' },
+  { id: 'login', label: 'Login / Authentication' },
+  { id: 'account-information', label: 'Account Information' },
+  { id: 'settings', label: 'Settings' },
+  { id: 'support', label: 'Support' },
+  { id: 'other', label: 'Other' },
 ];
 
+const MAX_NAME_LENGTH = 80;
 const MAX_DESCRIPTION_LENGTH = 600;
-const MAX_DOCUMENTS = 3;
+const MAX_STEPS_LENGTH = 800;
+const MAX_ATTACHMENTS = 3;
 
-export default function ReportIssueScreen() {
+export default function BugReportScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
   const submitMutation = useSubmitSupportRequest();
 
-  const [issueType, setIssueType] = useState('');
+  const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [stepsToReproduce, setStepsToReproduce] = useState('');
+  const [areaAffected, setAreaAffected] = useState('');
   const [phoneNumber, setPhoneNumber] = useState(
     user?.phone?.replace(/^\+234/, '').replace(/^234/, '') || ''
   );
-  const [showTypeModal, setShowTypeModal] = useState(false);
+  const [showAreaModal, setShowAreaModal] = useState(false);
   const { attachments, pickImage, removeAttachment, appendToFormData, canAddMore } =
     useSupportAttachments();
 
   const handleSubmit = async () => {
-    if (!issueType) {
-      Alert.alert('Error', 'Please select an issue type');
+    if (!name.trim()) {
+      Alert.alert('Error', 'Please provide a name/title for the bug');
       return;
     }
     if (!description.trim()) {
-      Alert.alert('Error', 'Please provide a description of your issue');
+      Alert.alert('Error', 'Please provide a description of the bug');
+      return;
+    }
+    if (!areaAffected) {
+      Alert.alert('Error', 'Please select the area of the app affected');
       return;
     }
     if (!phoneNumber.trim()) {
@@ -57,47 +70,52 @@ export default function ReportIssueScreen() {
       return;
     }
 
-    const mapping = REPORT_ISSUE_MAP[issueType];
-    if (!mapping) {
-      Alert.alert('Error', 'Invalid issue type selected');
-      return;
-    }
-
+    const areaLabel = APP_AREAS.find((a) => a.id === areaAffected)?.label ?? areaAffected;
     const raw = phoneNumber.replace(/\D/g, '');
     const contactPhone =
       raw.startsWith('234') ? raw : raw.startsWith('0') ? '234' + raw.slice(1) : '234' + raw;
 
     const formData = new FormData();
-    formData.append('source', 'service_issue');
-    formData.append('category', mapping.category);
-    formData.append('type', mapping.type);
+    formData.append('source', 'bug_report');
+    formData.append('category', 'bug');
+    formData.append('type', 'app_crash');
+    formData.append('issueType', 'app_crash');
+    formData.append('title', name.trim());
     formData.append('description', description.trim());
     formData.append('contactPhone', contactPhone);
+    if (stepsToReproduce.trim()) {
+      formData.append('stepsToReproduce', stepsToReproduce.trim());
+    }
+    formData.append('areaAffected', areaLabel);
     appendToFormData(formData);
 
     try {
       await submitMutation.mutateAsync(formData);
       Alert.alert(
-        'Issue Reported',
-        'Thank you for your report. Our support team will contact you soon.',
+        'Bug Reported',
+        'Thank you for your report. Our team will look into it and get back to you.',
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch {
-      Alert.alert('Error', 'Failed to submit report. Please try again.');
+      Alert.alert('Error', 'Failed to submit bug report. Please try again.');
     }
   };
 
-  const isFormValid = issueType && description.trim() && phoneNumber.trim();
+  const isFormValid =
+    name.trim().length > 0 &&
+    description.trim().length > 0 &&
+    areaAffected.length > 0 &&
+    phoneNumber.trim().length > 0;
+
   const isSubmitting = submitMutation.isPending;
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Feather name="chevron-left" size={20} color="#1f1f1f" />
         </Pressable>
-        <Text style={styles.headerTitle}>Report Issue</Text>
+        <Text style={styles.headerTitle}>Report a Bug</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -106,26 +124,28 @@ export default function ReportIssueScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
-        {/* Issue Type */}
+        <Text style={styles.introText}>
+          Use this form to report issues with the app itself (crashes, glitches, incorrect behavior).
+          For delivery or account issues, use Report an Issue or Contact Support.
+        </Text>
+
+        {/* Bug Name */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Issue Type</Text>
-          <Pressable
-            style={styles.selectButton}
-            onPress={() => setShowTypeModal(true)}>
-            <Text
-              style={[
-                styles.selectButtonText,
-                !issueType && styles.selectButtonPlaceholder,
-              ]}>
-              {issueType || 'Select issue type'}
-            </Text>
-            <Feather name="chevron-right" size={20} color="#7A7A7A" />
-          </Pressable>
+          <Text style={styles.label}>Bug Name</Text>
+          <TextInput
+            style={styles.input}
+            value={name}
+            onChangeText={(text) => setName(text.slice(0, MAX_NAME_LENGTH))}
+            placeholder="e.g. App crashes when marking order delivered"
+            placeholderTextColor="#9E9E9E"
+            maxLength={MAX_NAME_LENGTH}
+          />
+          <Text style={styles.charCount}>{name.length}/{MAX_NAME_LENGTH}</Text>
         </View>
 
-        {/* Issue Description */}
+        {/* Description */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Issue Description</Text>
+          <Text style={styles.label}>Description</Text>
           <View style={styles.textAreaContainer}>
             <TextInput
               style={styles.textArea}
@@ -133,7 +153,7 @@ export default function ReportIssueScreen() {
               onChangeText={(text) =>
                 setDescription(text.slice(0, MAX_DESCRIPTION_LENGTH))
               }
-              placeholder="Please provide a short description of your issue so the support team can easily find the best way to help you"
+              placeholder="Describe what happens and what you expected to happen"
               placeholderTextColor="#9E9E9E"
               multiline
               textAlignVertical="top"
@@ -142,6 +162,40 @@ export default function ReportIssueScreen() {
               {description.length}/{MAX_DESCRIPTION_LENGTH}
             </Text>
           </View>
+        </View>
+
+        {/* Steps to Reproduce */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Steps to Reproduce</Text>
+          <View style={styles.textAreaContainer}>
+            <TextInput
+              style={styles.textArea}
+              value={stepsToReproduce}
+              onChangeText={(text) =>
+                setStepsToReproduce(text.slice(0, MAX_STEPS_LENGTH))
+              }
+              placeholder={'1. Go to Orders\n2. Tap an order\n3. Tap Mark as delivered\n4. App crashes'}
+              placeholderTextColor="#9E9E9E"
+              multiline
+              textAlignVertical="top"
+            />
+            <Text style={styles.charCount}>
+              {stepsToReproduce.length}/{MAX_STEPS_LENGTH}
+            </Text>
+          </View>
+        </View>
+
+        {/* Contact Phone */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Contact Phone Number</Text>
+          <TextInput
+            style={styles.input}
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            placeholder="e.g. 08012345678"
+            placeholderTextColor="#9E9E9E"
+            keyboardType="phone-pad"
+          />
         </View>
 
         {/* Supporting Documents */}
@@ -155,7 +209,7 @@ export default function ReportIssueScreen() {
                 <Feather name="plus" size={24} color="#4F4F4F" />
               </Pressable>
             )}
-            {attachments.map((_, index) => (
+            {attachments.map((att, index) => (
               <Pressable
                 key={index}
                 style={styles.documentThumbnail}
@@ -165,73 +219,75 @@ export default function ReportIssueScreen() {
             ))}
           </View>
           <Text style={styles.docCount}>
-            {attachments.length}/{MAX_DOCUMENTS}
+            {attachments.length}/{MAX_ATTACHMENTS}
           </Text>
         </View>
 
-        {/* Contact Phone Number */}
+        {/* Area Affected */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Contact Phone Number</Text>
-          <View style={styles.phoneInputContainer}>
-            <View style={styles.phonePrefix}>
-              <Text style={styles.phonePrefixText}>+234</Text>
-            </View>
-            <TextInput
-              style={styles.phoneInput}
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-              placeholder="70 4256 8913"
-              placeholderTextColor="#9E9E9E"
-              keyboardType="phone-pad"
-            />
-          </View>
+          <Text style={styles.label}>Area Affected</Text>
+          <Pressable
+            style={styles.selectButton}
+            onPress={() => setShowAreaModal(true)}>
+            <Text
+              style={[
+                styles.selectButtonText,
+                !areaAffected && styles.selectButtonPlaceholder,
+              ]}>
+              {APP_AREAS.find((a) => a.id === areaAffected)?.label ||
+                'Select area'}
+            </Text>
+            <Feather name="chevron-down" size={20} color="#7A7A7A" />
+          </Pressable>
         </View>
 
-        {/* Submit Button */}
+        {/* Submit */}
         <Pressable
           style={[styles.submitButton, isFormValid && styles.submitButtonActive]}
           onPress={handleSubmit}
           disabled={!isFormValid || isSubmitting}>
           <Text style={styles.submitButtonText}>
-            {isSubmitting ? 'Submitting...' : 'Submit'}
+            {isSubmitting ? 'Submitting...' : 'Submit Bug Report'}
           </Text>
         </Pressable>
       </ScrollView>
 
-      {/* Issue Type Modal */}
+      {/* Area Modal */}
       <Modal
-        visible={showTypeModal}
+        visible={showAreaModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowTypeModal(false)}>
+        onRequestClose={() => setShowAreaModal(false)}>
         <Pressable
           style={styles.modalOverlay}
-          onPress={() => setShowTypeModal(false)}>
+          onPress={() => setShowAreaModal(false)}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Issue Type</Text>
-            {ISSUE_TYPES.map((type) => (
-              <Pressable
-                key={type}
-                style={[
-                  styles.modalOption,
-                  issueType === type && styles.modalOptionSelected,
-                ]}
-                onPress={() => {
-                  setIssueType(type);
-                  setShowTypeModal(false);
-                }}>
-                <Text
+            <Text style={styles.modalTitle}>Select Area Affected</Text>
+            <ScrollView style={styles.modalScroll}>
+              {APP_AREAS.map((area) => (
+                <Pressable
+                  key={area.id}
                   style={[
-                    styles.modalOptionText,
-                    issueType === type && styles.modalOptionTextSelected,
-                  ]}>
-                  {type}
-                </Text>
-                {issueType === type && (
-                  <Feather name="check" size={20} color="#FFD700" />
-                )}
-              </Pressable>
-            ))}
+                    styles.modalOption,
+                    areaAffected === area.id && styles.modalOptionSelected,
+                  ]}
+                  onPress={() => {
+                    setAreaAffected(area.id);
+                    setShowAreaModal(false);
+                  }}>
+                  <Text
+                    style={[
+                      styles.modalOptionText,
+                      areaAffected === area.id && styles.modalOptionTextSelected,
+                    ]}>
+                    {area.label}
+                  </Text>
+                  {areaAffected === area.id && (
+                    <Feather name="check" size={20} color="#FFD700" />
+                  )}
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
         </Pressable>
       </Modal>
@@ -273,8 +329,14 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 8,
     paddingBottom: 40,
+  },
+  introText: {
+    fontSize: 14,
+    color: '#4F4F4F',
+    lineHeight: 20,
+    marginBottom: 24,
   },
   inputGroup: {
     backgroundColor: '#FFFFFF',
@@ -286,45 +348,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#1f1f1f',
-    marginBottom: 16,
+    marginBottom: 8,
   },
-  optionalText: {
-    fontWeight: '400',
-    color: '#7A7A7A',
-  },
-  selectButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  input: {
     backgroundColor: '#F2F2F2',
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  selectButtonText: {
+    paddingVertical: 12,
     fontSize: 16,
     color: '#1f1f1f',
-  },
-  selectButtonPlaceholder: {
-    color: '#9E9E9E',
   },
   textAreaContainer: {
     backgroundColor: '#F2F2F2',
     borderRadius: 12,
     padding: 16,
-    minHeight: 160,
+    minHeight: 120,
   },
   textArea: {
     fontSize: 14,
     color: '#1f1f1f',
     flex: 1,
-    minHeight: 120,
+    minHeight: 80,
   },
   charCount: {
     fontSize: 12,
     color: '#7A7A7A',
     textAlign: 'right',
     marginTop: 8,
+  },
+  optionalText: {
+    fontWeight: '400',
+    color: '#7A7A7A',
   },
   documentsRow: {
     flexDirection: 'row',
@@ -355,29 +409,21 @@ const styles = StyleSheet.create({
     color: '#7A7A7A',
     textAlign: 'right',
   },
-  phoneInputContainer: {
+  selectButton: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: '#F2F2F2',
     borderRadius: 12,
-    overflow: 'hidden',
-  },
-  phonePrefix: {
-    backgroundColor: '#BDBDBD',
     paddingHorizontal: 16,
     paddingVertical: 16,
-    justifyContent: 'center',
   },
-  phonePrefixText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1f1f1f',
-  },
-  phoneInput: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+  selectButtonText: {
     fontSize: 16,
     color: '#1f1f1f',
+  },
+  selectButtonPlaceholder: {
+    color: '#9E9E9E',
   },
   submitButton: {
     backgroundColor: '#FFEDB5',
@@ -385,7 +431,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 16,
+    marginTop: 8,
   },
   submitButtonActive: {
     backgroundColor: '#FFD700',
@@ -406,6 +452,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: 24,
     paddingBottom: 40,
+    maxHeight: '70%',
   },
   modalTitle: {
     fontSize: 18,
@@ -413,6 +460,9 @@ const styles = StyleSheet.create({
     color: '#1f1f1f',
     marginBottom: 16,
     textAlign: 'center',
+  },
+  modalScroll: {
+    maxHeight: 320,
   },
   modalOption: {
     flexDirection: 'row',

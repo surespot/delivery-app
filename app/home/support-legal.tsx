@@ -22,6 +22,7 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
   { id: 'faq', label: 'FAQ', icon: 'help-circle-outline', target: '/home/faq' },
   { id: 'report', label: 'Report an Issue', icon: 'warning-outline', target: '/home/report-issue' },
+  { id: 'bug', label: 'Report a Bug', icon: 'bug-outline', target: '/home/bug-report' },
   { id: 'contact', label: 'Contact Support', icon: 'chatbubble-ellipses-outline', target: '/home/contact-support' },
   { id: 'terms', label: 'Terms and Conditions', icon: 'document-text-outline', target: '/docs/terms-and-conditions' },
   { id: 'privacy', label: 'Privacy Policy', icon: 'shield-checkmark-outline', target: '/docs/privacy-policy' },

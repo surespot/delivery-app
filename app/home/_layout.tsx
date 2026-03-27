@@ -1,7 +1,12 @@
 import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { useInitialLocationBroadcast } from '@/src/hooks/use-initial-location-broadcast';
+import { useRegisterPushToken } from '@/src/hooks/use-register-push-token';
 import { useAuthStore } from '@/store/auth-store';
+import {
+  createNotificationsSocket,
+  disconnectNotificationsSocket,
+} from '@/src/api/notifications';
 import { createOrdersSocket, disconnectOrdersSocket } from '@/src/api/orders/websocket';
 
 export default function HomeLayout() {
@@ -10,20 +15,24 @@ export default function HomeLayout() {
   // Broadcast location when app opens
   useInitialLocationBroadcast();
 
-  // Manage a single shared orders WebSocket connection for the home stack
+  // Register Expo push token with backend when authenticated
+  useRegisterPushToken(isAuthenticated);
+
+  // Manage shared WebSocket connections for the home stack
   useEffect(() => {
     if (!isAuthenticated || !isOnline) {
-      // Disconnect when user logs out or goes offline
       disconnectOrdersSocket();
+      disconnectNotificationsSocket();
       return;
     }
 
-    // Ensure socket is created/connected
     createOrdersSocket().catch((error) => {
       console.error('Error creating orders WebSocket from HomeLayout:', error);
     });
 
-    // Don't disconnect on unmount here; this layout persists for the home stack.
+    createNotificationsSocket().catch((error) => {
+      console.error('Error creating notifications WebSocket from HomeLayout:', error);
+    });
   }, [isAuthenticated, isOnline]);
 
   return (
@@ -81,6 +90,10 @@ export default function HomeLayout() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="bug-report"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="support-account-verification"
         options={{ headerShown: false }}
       />
@@ -97,7 +110,15 @@ export default function HomeLayout() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="support-request-details"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="delivery-details"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="notifications"
         options={{ headerShown: false }}
       />
     </Stack>

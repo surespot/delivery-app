@@ -1,9 +1,13 @@
-import { ReportStatus, useSupportStore } from '@/store/support-store';
+import { useSupportRequests } from '@/src/api/support';
+import { getStatusDisplay } from '@/src/api/support/utils';
+import type { SupportStatus } from '@/src/api/support/types';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -11,30 +15,65 @@ import {
   View,
 } from 'react-native';
 
-type FilterTab = 'All' | 'Pending' | 'Resolved';
+type FilterTab = 'All' | 'Pending' | 'In Progress' | 'Resolved' | 'Closed';
 
-const FILTER_TABS: FilterTab[] = ['All', 'Pending', 'Resolved'];
+const FILTER_TABS: FilterTab[] = ['All', 'Pending', 'In Progress', 'Resolved', 'Closed'];
+
+const TAB_TO_API_STATUS: Record<FilterTab, string | undefined> = {
+  All: undefined,
+  Pending: 'pending',
+  'In Progress': 'in_progress',
+  Resolved: 'resolved',
+  Closed: 'closed',
+};
 
 export default function SupportRecentsScreen() {
   const router = useRouter();
-  const { reports } = useSupportStore();
   const [activeTab, setActiveTab] = useState<FilterTab>('All');
+  const apiStatus = TAB_TO_API_STATUS[activeTab];
 
-  const filteredReports = reports.filter((report) => {
-    if (activeTab === 'All') return true;
-    return report.status === activeTab;
-  });
+  const { data, isLoading, isError, error, refetch, isRefetching } = useSupportRequests(
+    1,
+    50,
+    apiStatus,
+    true
+  );
 
-  const getStatusStyle = (status: ReportStatus) => {
-    switch (status) {
+  const requests = data?.data?.requests ?? [];
+  const isRefreshing = isRefetching && !isLoading;
+
+  const getStatusStyle = (status: SupportStatus | string) => {
+    const display = getStatusDisplay(status);
+    switch (display) {
       case 'Pending':
         return { bg: '#FFF3C4', text: '#FF9800' };
       case 'In Progress':
         return { bg: '#E3F2FD', text: '#1976D2' };
       case 'Resolved':
         return { bg: '#E8F5E9', text: '#2DBE7E' };
+      case 'Closed':
+        return { bg: '#F5F5F5', text: '#757575' };
       default:
         return { bg: '#F5F5F5', text: '#757575' };
+    }
+  };
+
+  const formatDate = (isoString: string) => {
+    try {
+      const d = new Date(isoString);
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const day = d.getDate();
+      const suffix =
+        day === 1 || day === 21 || day === 31
+          ? 'st'
+          : day === 2 || day === 22
+            ? 'nd'
+            : day === 3 || day === 23
+              ? 'rd'
+              : 'th';
+      return `${months[d.getMonth()]} ${day}${suffix}, ${d.getFullYear()}`;
+    } catch {
+      return isoString;
     }
   };
 
@@ -70,21 +109,44 @@ export default function SupportRecentsScreen() {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
-        {filteredReports.length === 0 ? (
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => refetch()}
+            colors={['#FFD700']}
+            tintColor="#FFD700"
+          />
+        }>
+        {isLoading ? (
+          <View style={styles.loadingState}>
+            <ActivityIndicator size="large" color="#FFD700" />
+            <Text style={styles.loadingText}>Loading requests...</Text>
+          </View>
+        ) : isError ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.errorStateText}>
+              {error instanceof Error ? error.message : 'Failed to load requests'}
+            </Text>
+          </View>
+        ) : requests.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateText}>
               No {activeTab === 'All' ? '' : activeTab.toLowerCase()} reports found
             </Text>
           </View>
         ) : (
-          filteredReports.map((report) => {
-            const statusStyle = getStatusStyle(report.status);
+          requests.map((request) => {
+            const statusStyle = getStatusStyle(request.status);
+            const title = request.title ?? request.description?.slice(0, 60) ?? 'Support Request';
             return (
-              <View key={report.id} style={styles.reportCard}>
+              <Pressable
+                key={request.id}
+                style={styles.reportCard}
+                onPress={() => router.push(`/home/support-request-details?id=${request.id}` as any)}>
                 <View style={styles.reportInfo}>
-                  <Text style={styles.reportTitle}>{report.title}</Text>
-                  <Text style={styles.reportDate}>{report.date}</Text>
+                  <Text style={styles.reportTitle}>{title}</Text>
+                  <Text style={styles.reportDate}>{formatDate(request.createdAt)}</Text>
                 </View>
                 <View
                   style={[
@@ -96,10 +158,10 @@ export default function SupportRecentsScreen() {
                       styles.reportStatusText,
                       { color: statusStyle.text },
                     ]}>
-                    {report.status}
+                    {getStatusDisplay(request.status)}
                   </Text>
                 </View>
-              </View>
+              </Pressable>
             );
           })
         )}
@@ -168,6 +230,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 40,
   },
+  loadingState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#7A7A7A',
+  },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,
@@ -175,6 +246,11 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 14,
     color: '#9e9e9e',
+    textAlign: 'center',
+  },
+  errorStateText: {
+    fontSize: 14,
+    color: '#D32F2F',
     textAlign: 'center',
   },
   reportCard: {

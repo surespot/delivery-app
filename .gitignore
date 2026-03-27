@@ -94,3 +94,6 @@ $RECYCLE.BIN/
 
 expo-env.d.ts
 # @end expo-cli
+
+*.md
+!README.md

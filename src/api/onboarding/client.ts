@@ -229,6 +229,66 @@ export async function apiRequest<T>(
   }
 }
 
+/**
+ * Multipart/form-data request for file uploads and form submissions.
+ * Does not set Content-Type so the browser sets it with the correct boundary.
+ */
+export async function apiRequestMultipart<T>(
+  endpoint: string,
+  options: { formData: FormData; requiresAuth?: boolean } = {}
+): Promise<ApiResponse<T>> {
+  const { formData, requiresAuth = false } = options;
+
+  const url = `${BASE_URL}${endpoint}`;
+  const requestHeaders: HeadersInit = {};
+
+  if (requiresAuth) {
+    const token = await getAuthToken();
+    if (token) {
+      requestHeaders['Authorization'] = `Bearer ${token}`;
+    }
+  }
+
+  const config: RequestInit = {
+    method: 'POST',
+    headers: requestHeaders,
+    body: formData,
+  };
+
+  const doFetch = async (headers: HeadersInit): Promise<Response> => {
+    return fetch(url, { ...config, headers });
+  };
+
+  try {
+    let response = await doFetch(requestHeaders);
+    let data: ApiResponse<T> = await response.json();
+
+    if (response.status === 401 && requiresAuth && !isRefreshing) {
+      const newAccessToken = await refreshAccessToken();
+      if (newAccessToken) {
+        requestHeaders['Authorization'] = `Bearer ${newAccessToken}`;
+        response = await doFetch(requestHeaders);
+        data = await response.json();
+      } else {
+        await clearTokens();
+        throw new Error('Session expired. Please login again.');
+      }
+    }
+
+    if (!response.ok) {
+      if (!data.success && data.error) {
+        throw new Error(data.error.message || 'An error occurred');
+      }
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return data;
+  } catch (error) {
+    if (error instanceof Error) throw error;
+    throw new Error('Network error occurred');
+  }
+}
+
 // API Client Functions
 export const onboardingApi = {
   // Get rider profile by registration code (masked)

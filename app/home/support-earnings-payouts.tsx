@@ -1,5 +1,7 @@
+import { useSubmitSupportRequest } from '@/src/api/support';
+import { EARNINGS_PAYOUTS_TYPE_MAP } from '@/src/api/support/utils';
+import { useSupportAttachments } from '@/src/hooks/use-support-attachments';
 import { useAuthStore } from '@/store/auth-store';
-import { useSupportStore } from '@/store/support-store';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -89,7 +91,7 @@ const MAX_DOCUMENTS = 3;
 export default function SupportEarningsPayoutsScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { addReport } = useSupportStore();
+  const submitMutation = useSubmitSupportRequest();
   
   const [stage, setStage] = useState<Stage>('select-order');
   const [showOrderModal, setShowOrderModal] = useState(false);
@@ -100,11 +102,9 @@ export default function SupportEarningsPayoutsScreen() {
   
   // Additional info state
   const [description, setDescription] = useState('');
-  const [documents, setDocuments] = useState<string[]>([]);
   const [phoneNumber, setPhoneNumber] = useState(
-    user?.phone?.replace('+234', '').replace('+2347', '7') || ''
+    user?.phone?.replace(/^\+234/, '').replace(/^234/, '') || ''
   );
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleOpenModal = () => {
     setTempSelectedOrder(selectedOrder);
@@ -127,13 +127,8 @@ export default function SupportEarningsPayoutsScreen() {
     }
   };
 
-  const handleAddDocument = () => {
-    if (documents.length >= MAX_DOCUMENTS) {
-      Alert.alert('Limit Reached', `You can only attach up to ${MAX_DOCUMENTS} documents.`);
-      return;
-    }
-    Alert.alert('Coming Soon', 'Document upload will be available soon.');
-  };
+  const { attachments, pickImage, removeAttachment, appendToFormData, canAddMore } =
+    useSupportAttachments();
 
   const handleSubmit = async () => {
     if (!description.trim()) {
@@ -144,37 +139,44 @@ export default function SupportEarningsPayoutsScreen() {
       Alert.alert('Error', 'Please provide a contact phone number');
       return;
     }
+    if (!selectedComplaintType) {
+      Alert.alert('Error', 'Please select a complaint type');
+      return;
+    }
 
-    setIsSubmitting(true);
+    const apiType = EARNINGS_PAYOUTS_TYPE_MAP[selectedComplaintType];
+    if (!apiType) {
+      Alert.alert('Error', 'Invalid complaint type selected');
+      return;
+    }
+
+    const raw = phoneNumber.replace(/\D/g, '');
+    const contactPhone =
+      raw.startsWith('234') ? raw : raw.startsWith('0') ? '234' + raw.slice(1) : '234' + raw;
+
+    const formData = new FormData();
+    formData.append('source', 'service_issue');
+    formData.append('category', 'earnings_payouts');
+    formData.append('type', apiType);
+    formData.append('description', description.trim());
+    formData.append('contactPhone', contactPhone);
+    if (selectedOrder?.id) {
+      formData.append('orderId', selectedOrder.id);
+    }
+    appendToFormData(formData);
+
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      
-      // Get complaint type label
-      const complaintTypeLabel = COMPLAINT_TYPES.find(
-        (t) => t.id === selectedComplaintType
-      )?.label || 'Earnings Issue';
-      
-      // Add report to store
-      addReport({
-        title: complaintTypeLabel,
-        category: 'earnings-payouts',
-        description: description,
-        orderId: selectedOrder?.id,
-        complaintType: selectedComplaintType || undefined,
-      });
-      
+      await submitMutation.mutateAsync(formData);
       setStage('success');
     } catch {
       Alert.alert('Error', 'Failed to submit report. Please try again.');
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
+  const isSubmitting = submitMutation.isPending;
+
   const handleViewProgress = () => {
-    // Navigate to progress/complaints tracking page
-    router.back();
+    router.push('/home/support-recents' as any);
   };
 
   const handleBrowseOrders = () => {
@@ -384,17 +386,22 @@ export default function SupportEarningsPayoutsScreen() {
                 Supporting Documents <Text style={styles.optionalText}>(Optional)</Text>
               </Text>
               <View style={styles.documentsRow}>
-                <Pressable style={styles.addDocButton} onPress={handleAddDocument}>
-                  <Feather name="plus" size={24} color="#4F4F4F" />
-                </Pressable>
-                {documents.map((doc, index) => (
-                  <View key={index} style={styles.documentThumbnail}>
-                    <Feather name="file" size={20} color="#4F4F4F" />
-                  </View>
+                {canAddMore && (
+                  <Pressable style={styles.addDocButton} onPress={pickImage}>
+                    <Feather name="plus" size={24} color="#4F4F4F" />
+                  </Pressable>
+                )}
+                {attachments.map((_, index) => (
+                  <Pressable
+                    key={index}
+                    style={styles.documentThumbnail}
+                    onPress={() => removeAttachment(index)}>
+                    <Feather name="image" size={20} color="#4F4F4F" />
+                  </Pressable>
                 ))}
               </View>
               <Text style={styles.docCount}>
-                {documents.length}/{MAX_DOCUMENTS}
+                {attachments.length}/{MAX_DOCUMENTS}
               </Text>
             </View>
 

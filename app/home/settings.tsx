@@ -99,6 +99,16 @@ export default function SettingsScreen() {
             </View>
             <Feather name="chevron-right" size={20} color="#7A7A7A" />
           </Pressable>
+
+          <Pressable
+            style={styles.navRow}
+            onPress={() => router.push('/home/notifications' as any)}>
+            <View style={styles.navLeft}>
+              <Ionicons name="notifications-outline" size={20} color="#4F4F4F" />
+              <Text style={styles.navLabel}>Notification History</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#7A7A7A" />
+          </Pressable>
         </View>
 
         {/* Notification Toggles */}

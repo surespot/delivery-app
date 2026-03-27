@@ -44,6 +44,14 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow Surespot Delivery to use your location to match you with nearby delivery requests and provide real-time tracking."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#2DBE7E",
+          "sounds": []
+        }
       ]
     ],
     "experiments": {

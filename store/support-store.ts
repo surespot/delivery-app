@@ -11,6 +11,10 @@ export interface SupportReport {
   status: ReportStatus;
   orderId?: string;
   complaintType?: string;
+  /** Bug report: steps to reproduce */
+  stepsToReproduce?: string;
+  /** Bug report: area of app affected */
+  areaAffected?: string;
 }
 
 interface SupportState {
@@ -35,7 +39,7 @@ const formatDate = () => {
 export const useSupportStore = create<SupportState>((set) => ({
   reports: [],
   
-  addReport: (report) =>
+  addReport: (report: Omit<SupportReport, 'id' | 'date' | 'status'>) =>
     set((state) => ({
       reports: [
         {
