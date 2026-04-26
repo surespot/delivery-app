@@ -8,7 +8,6 @@ import {
   useOrdersWebSocket,
 } from '@/src/api/orders/hooks';
 import { getErrorMessage } from '@/src/api/orders/utils';
-import { useRiderLocationTracking } from '@/src/hooks/use-rider-location';
 import { useAuthStore } from '@/store/auth-store';
 import { useOrdersStore } from '@/store/orders-store';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -96,9 +95,7 @@ export default function HomeScreen() {
       markAsPickedUp(orderId);
       refetchActive();
     },
-    onError: (err) => {
-      console.error('WebSocket error:', err);
-    },
+    onError: () => {},
   });
 
   // Update store when API data changes
@@ -117,9 +114,6 @@ export default function HomeScreen() {
       setAvailableOrders(eligibleOrdersData.data.orders);
     }
   }, [eligibleOrdersData, setAvailableOrders]);
-
-  // Start location tracking when user is online
-  useRiderLocationTracking();
 
   useEffect(() => {
     const timer = setTimeout(() => {

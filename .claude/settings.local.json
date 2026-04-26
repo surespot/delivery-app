@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep *)",
+      "Bash(grep -E \"\\\\.\\(json|yaml|yml|toml|gradle|plist|xml|ts|tsx|js|jsx|dart|swift|kt\\)$\")",
+      "Bash(npm install *)",
+      "WebFetch(domain:docs.expo.dev)",
+      "Bash(node -e \"require\\('react-native-safe-area-context'\\)\")"
+    ]
+  }
+}

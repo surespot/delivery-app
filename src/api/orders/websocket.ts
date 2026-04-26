@@ -85,37 +85,31 @@ export async function createOrdersSocket(): Promise<Socket | null> {
     // Connection event
     socket.on('connect', () => {
       reconnectAttempts = 0;
-      console.log('Orders WebSocket connected');
     });
 
     // Connection success event (from server)
     socket.on('connected', (data: WebSocketConnectionResponse) => {
       reconnectAttempts = 0;
-      console.log('Orders WebSocket authenticated:', data);
       notifyCallbacks('onConnected', data);
     });
 
     // Order ready event
     socket.on('order:ready', (data: OrderReadyEvent) => {
-      console.log('New order ready:', data);
       notifyCallbacks('onOrderReady', data);
     });
 
     // Order picked up event
     socket.on('order:picked_up', (data: OrderPickedUpEvent) => {
-      console.log('Order picked up:', data);
       notifyCallbacks('onOrderPickedUp', data);
     });
 
     // Disconnect event
-    socket.on('disconnect', (reason) => {
-      console.log('Orders WebSocket disconnected:', reason);
+    socket.on('disconnect', () => {
       notifyCallbacks('onDisconnected');
     });
 
     // Connection error
-    socket.on('connect_error', (error) => {
-      console.error('Orders WebSocket connection error:', error);
+    socket.on('connect_error', () => {
       reconnectAttempts++;
       if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
         notifyCallbacks(
@@ -127,7 +121,6 @@ export async function createOrdersSocket(): Promise<Socket | null> {
 
     // General error
     socket.on('error', (error) => {
-      console.error('Orders WebSocket error:', error);
       notifyCallbacks(
         'onError',
         error instanceof Error ? error : new Error(String(error))
@@ -136,7 +129,6 @@ export async function createOrdersSocket(): Promise<Socket | null> {
 
     return socket;
   } catch (error) {
-    console.error('Error creating orders socket:', error);
     notifyCallbacks(
       'onError',
       error instanceof Error

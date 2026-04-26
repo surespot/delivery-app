@@ -39,4 +39,8 @@ export type {
 export { WalletErrorCode } from './types';
 
 // Export utils
-export { formatTransactionDate, getWalletErrorMessage } from './utils';
+export {
+  formatTransactionDate,
+  getWalletErrorMessage,
+  getWalletErrorMessageFromError,
+} from './utils';

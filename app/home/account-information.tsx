@@ -77,14 +77,15 @@ const stageConfig: Record<Stage, { title: string; backTo: Stage | null }> = {
 
 export default function AccountInformationScreen() {
   const router = useRouter();
-  const { user, updateUser } = useAuthStore();
+  const { user, updateUser, isAuthenticated } = useAuthStore();
   const uploadAvatar = useUploadAvatar();
 
   // Redirect if user is not available
-  if (!user) {
-    router.replace('/auth/login' as any);
-    return null;
-  }
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace('/auth/login' as any);
+    }
+  }, [isAuthenticated]);
 
   // Stage management
   const [stage, setStage] = useState<Stage>('overview');

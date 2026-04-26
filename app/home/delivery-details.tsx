@@ -65,6 +65,9 @@ export default function DeliveryDetailsScreen() {
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const messageInputRef = useRef<TextInput>(null);
+  /** Sync copy of input text — updated in onChangeText before setState; avoids Android multiline stale state on send. */
+  const messageDraftRef = useRef('');
 
   const { currentOrders, availableOrders, completedOrders } = useOrdersStore();
   const { user } = useAuthStore();
@@ -135,6 +138,13 @@ export default function DeliveryDetailsScreen() {
     }
   }, [orderId, currentOrders, availableOrders, completedOrders]);
 
+  // Reset composer when switching order or conversation so draft/ref never leaks across chats
+  useEffect(() => {
+    messageDraftRef.current = '';
+    setMessage('');
+    messageInputRef.current?.clear();
+  }, [orderId, conversationId]);
+
   // Dash animation effect
   useEffect(() => {
     dashAnimationRefs.current = dashAnimations.map((anim) => {
@@ -196,9 +206,7 @@ export default function DeliveryDetailsScreen() {
   const handleCallCustomer = () => {
     const phone = order?.deliveryAddress?.contactPhone;
     if (phone) {
-      Linking.openURL(`tel:${phone}`).catch((err) => {
-        console.error('Failed to start call:', err);
-      });
+      Linking.openURL(`tel:${phone}`).catch(() => {});
     }
   };
 
@@ -244,21 +252,35 @@ export default function DeliveryDetailsScreen() {
     // Open Google Maps with directions from pickup to delivery
     const url = `https://www.google.com/maps/dir/?api=1&origin=${pickup.latitude},${pickup.longitude}&destination=${delivery.latitude},${delivery.longitude}&travelmode=driving`;
 
-    Linking.openURL(url).catch((err) => {
-      console.error('Failed to open maps:', err);
+    Linking.openURL(url).catch(() => {
       Alert.alert('Error', 'Failed to open maps. Please try again.');
     });
   };
 
   const handleSendMessage = async () => {
-    if (!message.trim() || !order || order.status !== 'out-for-delivery') return;
+    if (!order || order.status !== 'out-for-delivery') return;
+
+    // Android's multiline TextInput batches onChangeText callbacks.
+    // Wait 150ms for any pending text updates to arrive via onChangeText,
+    // which keeps updating messageDraftRef.current.
+    // Do NOT blur yet — that can interfere with pending IME text.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    // Now read the most up-to-date text from our ref (updated by onChangeText)
+    const currentMessage = messageDraftRef.current.trim();
+
+    if (!currentMessage) return;
 
     try {
       await sendMessageMutation.mutateAsync({
         orderId: order.id,
-        content: message.trim(),
+        content: currentMessage,
       });
+
+      // Clear after successful send
+      messageDraftRef.current = '';
       setMessage('');
+      messageInputRef.current?.clear();
       refetchMessages();
       setTimeout(() => {
         chatScrollViewRef.current?.scrollToEnd({ animated: true });
@@ -511,18 +533,24 @@ export default function DeliveryDetailsScreen() {
               {!isReadOnly && (
                 <View style={styles.inputContainer}>
                   <TextInput
+                    ref={messageInputRef}
+                    key={conversationId ?? 'chat-input'}
                     style={styles.messageInput}
                     placeholder="Type in a message"
                     placeholderTextColor="#9e9e9e"
-                    value={message}
-                    onChangeText={setMessage}
+                    defaultValue=""
+                    onChange={(e) => {
+                      const text = e.nativeEvent.text;
+                      messageDraftRef.current = text;
+                      setMessage(text);
+                    }}
                     multiline
                     editable={!sendMessageMutation.isPending}
                   />
                   <Pressable
                     style={styles.sendButton}
                     onPress={handleSendMessage}
-                    disabled={!message.trim() || sendMessageMutation.isPending}>
+                    disabled={sendMessageMutation.isPending || !message.trim()}>
                     {sendMessageMutation.isPending ? (
                       <ActivityIndicator size="small" color="#7a7a7a" />
                     ) : (

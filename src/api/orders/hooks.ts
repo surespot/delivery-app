@@ -172,8 +172,8 @@ export const useOrdersWebSocket = (
 
     // Ensure socket exists; if not, create it
     if (!isOrdersSocketConnected()) {
-      createOrdersSocket().catch((error) => {
-        console.error('Error creating orders WebSocket from hook:', error);
+      createOrdersSocket().catch(() => {
+        // Socket will retry automatically via reconnection settings
       });
     }
 

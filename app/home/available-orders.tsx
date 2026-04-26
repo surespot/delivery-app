@@ -44,9 +44,7 @@ export default function AvailableOrdersScreen() {
       // Refresh eligible orders when new order becomes ready
       refetch();
     },
-    onError: (err) => {
-      console.error('WebSocket error:', err);
-    },
+    onError: () => {},
   });
 
   // Update store when API data changes

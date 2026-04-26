@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { ApiResponse } from './types';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
@@ -6,13 +6,13 @@ const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
 const ACCESS_TOKEN_KEY = 'accessToken';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 const VERIFICATION_TOKEN_KEY = 'verificationToken';
+const PUSH_TOKEN_KEY = 'expoPushToken';
 
 // Helper function to get auth token from storage
 export const getAuthToken = async (): Promise<string | null> => {
   try {
-    return await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
-  } catch (error) {
-    console.error('Error getting auth token:', error);
+    return await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+  } catch {
     return null;
   }
 };
@@ -20,9 +20,8 @@ export const getAuthToken = async (): Promise<string | null> => {
 // Helper function to get verification token from storage
 const getVerificationToken = async (): Promise<string | null> => {
   try {
-    return await AsyncStorage.getItem(VERIFICATION_TOKEN_KEY);
-  } catch (error) {
-    console.error('Error getting verification token:', error);
+    return await SecureStore.getItemAsync(VERIFICATION_TOKEN_KEY);
+  } catch {
     return null;
   }
 };
@@ -30,9 +29,8 @@ const getVerificationToken = async (): Promise<string | null> => {
 // Helper function to get refresh token from storage
 export const getRefreshToken = async (): Promise<string | null> => {
   try {
-    return await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
-  } catch (error) {
-    console.error('Error getting refresh token:', error);
+    return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+  } catch {
     return null;
   }
 };
@@ -40,36 +38,59 @@ export const getRefreshToken = async (): Promise<string | null> => {
 // Helper function to save auth token
 export const saveAuthToken = async (token: string): Promise<void> => {
   try {
-    await AsyncStorage.setItem(ACCESS_TOKEN_KEY, token);
-  } catch (error) {
-    console.error('Error saving auth token:', error);
+    await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, token);
+  } catch {
+    // Silently fail — token will be re-fetched on next auth check
   }
 };
 
 // Helper function to save refresh token
 export const saveRefreshToken = async (token: string): Promise<void> => {
   try {
-    await AsyncStorage.setItem(REFRESH_TOKEN_KEY, token);
-  } catch (error) {
-    console.error('Error saving refresh token:', error);
+    await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token);
+  } catch {
+    // Silently fail
   }
 };
 
 // Helper function to save verification token
 export const saveVerificationToken = async (token: string): Promise<void> => {
   try {
-    await AsyncStorage.setItem(VERIFICATION_TOKEN_KEY, token);
-  } catch (error) {
-    console.error('Error saving verification token:', error);
+    await SecureStore.setItemAsync(VERIFICATION_TOKEN_KEY, token);
+  } catch {
+    // Silently fail
+  }
+};
+
+// Save the Expo push token so it can be removed from the backend on logout
+// without needing to call getExpoPushTokenAsync again.
+export const savePushToken = async (token: string): Promise<void> => {
+  try {
+    await SecureStore.setItemAsync(PUSH_TOKEN_KEY, token);
+  } catch {
+    // Silently fail
+  }
+};
+
+export const getSavedPushToken = async (): Promise<string | null> => {
+  try {
+    return await SecureStore.getItemAsync(PUSH_TOKEN_KEY);
+  } catch {
+    return null;
   }
 };
 
 // Helper function to clear tokens
 export const clearTokens = async (): Promise<void> => {
   try {
-    await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, VERIFICATION_TOKEN_KEY]);
-  } catch (error) {
-    console.error('Error clearing tokens:', error);
+    await Promise.all([
+      SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY),
+      SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
+      SecureStore.deleteItemAsync(VERIFICATION_TOKEN_KEY),
+      SecureStore.deleteItemAsync(PUSH_TOKEN_KEY),
+    ]);
+  } catch {
+    // Silently fail
   }
 };
 
@@ -84,6 +105,19 @@ interface RequestOptions {
 // Flag to prevent infinite refresh loops
 let isRefreshing = false;
 let refreshPromise: Promise<string | null> | null = null;
+
+const EXPIRY_BUFFER_MS = 60_000;
+
+function isTokenNearExpiry(token: string): boolean {
+  try {
+    const payload = token.split('.')[1];
+    const decoded = JSON.parse(atob(payload));
+    if (!decoded.exp) return false;
+    return Date.now() > decoded.exp * 1000 - EXPIRY_BUFFER_MS;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Attempts to refresh the access token using the refresh token
@@ -122,8 +156,7 @@ async function refreshAccessToken(): Promise<string | null> {
       }
 
       return null;
-    } catch (error) {
-      console.error('Error refreshing token:', error);
+    } catch {
       return null;
     } finally {
       isRefreshing = false;
@@ -154,7 +187,11 @@ export async function apiRequest<T>(
 
   // Add auth token if required
   if (requiresAuth) {
-    const token = await getAuthToken();
+    let token = await getAuthToken();
+    if (token && isTokenNearExpiry(token)) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) token = refreshed;
+    }
     if (token) {
       requestHeaders['Authorization'] = `Bearer ${token}`;
     }
@@ -243,7 +280,11 @@ export async function apiRequestMultipart<T>(
   const requestHeaders: HeadersInit = {};
 
   if (requiresAuth) {
-    const token = await getAuthToken();
+    let token = await getAuthToken();
+    if (token && isTokenNearExpiry(token)) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) token = refreshed;
+    }
     if (token) {
       requestHeaders['Authorization'] = `Bearer ${token}`;
     }
@@ -405,7 +446,7 @@ export const onboardingApi = {
     ),
 
   // Logout
-  logout: (data: { refreshToken: string }) =>
+  logout: (data: { refreshToken: string; expoPushToken?: string | null }) =>
     apiRequest<import('./types').LogoutResponse>('/auth/logout', {
       method: 'POST',
       body: data,
@@ -534,4 +575,11 @@ export const onboardingApi = {
 
     return result as import('./types').UpdatePasswordResponseType;
   },
+
+  // Delete account
+  deleteAccount: () =>
+    apiRequest<{ message: string }>('/auth/account', {
+      method: 'DELETE',
+      requiresAuth: true,
+    }),
 };

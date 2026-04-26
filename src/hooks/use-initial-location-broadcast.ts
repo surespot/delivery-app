@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { useUpdateLocation } from '../api/location/hooks';
 import { useGetCurrentRiderProfile } from '../api/onboarding/hooks';
-import { reverseGeocode } from '../services/geocoding-service';
 import { locationService } from '../services/location-service';
 
 /**
- * Hook to broadcast location once when the app opens
- * This runs regardless of online status to ensure the server knows the rider's location
+ * Hook to broadcast location once when the app opens.
+ * Runs regardless of online status so the server always has a fresh position.
+ * Geocode fields are omitted — the backend treats them as optional.
  */
 export function useInitialLocationBroadcast() {
   const updateLocationMutation = useUpdateLocation();
@@ -25,70 +25,41 @@ export function useInitialLocationBroadcast() {
       return;
     }
 
-    // Mark as started immediately to prevent multiple calls
+    // Mark as started immediately to prevent concurrent calls
     hasBroadcastRef.current = true;
 
     const broadcastLocation = async () => {
       try {
-        // Request permissions first
         const hasPermission = await locationService.requestPermissions();
         if (!hasPermission) {
-          console.warn('[Location Broadcast] Location permissions not granted');
-          hasBroadcastRef.current = false; // Reset so it can retry
+          hasBroadcastRef.current = false;
           return;
         }
 
-        // Get current location
-        console.log('[Location Broadcast] Getting current location...');
         const location = await locationService.getCurrentLocation();
-
         if (!location) {
-          console.warn('[Location Broadcast] Failed to get current location');
-          hasBroadcastRef.current = false; // Reset so it can retry
+          hasBroadcastRef.current = false;
           return;
         }
 
-        // Reverse geocode address
-        console.log(`[Location Broadcast] Geocoding location: ${location.latitude}, ${location.longitude}`);
-        const geocodedAddress = await reverseGeocode(
-          location.latitude,
-          location.longitude
-        );
-
-        if (!geocodedAddress) {
-          console.warn(`[Location Broadcast] Failed to geocode address for coordinates: ${location.latitude}, ${location.longitude}`);
-          hasBroadcastRef.current = false; // Reset so it can retry
-          return;
-        }
-
-        // Broadcast location via REST API
-        console.log('[Location Broadcast] Broadcasting location to server...');
         updateLocationMutation.mutate(
           {
-            streetAddress: geocodedAddress.streetAddress,
             latitude: location.latitude,
             longitude: location.longitude,
-            state: geocodedAddress.state || '',
-            country: geocodedAddress.country || '',
-            regionId: regionId,
+            regionId,
           },
           {
-            onSuccess: () => {
-              console.log('[Location Broadcast] Location broadcasted successfully');
-            },
-            onError: (error) => {
-              console.error('[Location Broadcast] Error broadcasting location:', error);
-              hasBroadcastRef.current = false; // Reset on error so it can retry
+            onError: () => {
+              hasBroadcastRef.current = false;
             },
           }
         );
-      } catch (error) {
-        console.error('[Location Broadcast] Error in location broadcast:', error);
-        hasBroadcastRef.current = false; // Reset on error so it can retry
+      } catch {
+        hasBroadcastRef.current = false;
       }
     };
 
     broadcastLocation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [riderProfile?.data?.regionId]); // regionId won't change, so this will only run once when it's first available
+  }, [riderProfile?.data?.regionId]);
 }

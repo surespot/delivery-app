@@ -1,8 +1,11 @@
+import { useDeleteAccount } from '@/src/api/onboarding';
 import { useAuthStore } from '@/store/auth-store';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -39,7 +42,8 @@ const WarningBadgeIcon = () => (
 
 export default function SupportLegalScreen() {
   const router = useRouter();
-  const { setAuthenticated } = useAuthStore();
+  const { logout } = useAuthStore();
+  const { mutateAsync: deleteAccount, isPending: isDeletingAccount } = useDeleteAccount();
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
 
   const handlePress = (item: MenuItem) => {
@@ -52,11 +56,20 @@ export default function SupportLegalScreen() {
     setShowDeactivateConfirm(true);
   };
 
-  const handleConfirmDeactivate = () => {
-    // Log out the user
-    setAuthenticated(false);
-    // Navigate to home page with carousel
-    router.replace('/' as any);
+  const handleConfirmDeactivate = async () => {
+    try {
+      await deleteAccount();
+    } catch {
+      // Even if the server call fails, clear local state and redirect
+      Alert.alert(
+        'Account Deletion',
+        'There was a problem contacting the server, but your local session has been cleared. Please contact support if your account was not deleted.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      await logout();
+      router.replace('/' as any);
+    }
   };
 
   const handleCancelDeactivate = () => {
@@ -118,11 +131,16 @@ export default function SupportLegalScreen() {
 
           <View style={styles.deactivateButtons}>
             <Pressable
-              style={styles.confirmDeactivateButton}
-              onPress={handleConfirmDeactivate}>
-              <Text style={styles.confirmDeactivateButtonText}>
-                Yes, Deactivate My Account
-              </Text>
+              style={[styles.confirmDeactivateButton, isDeletingAccount && { opacity: 0.7 }]}
+              onPress={handleConfirmDeactivate}
+              disabled={isDeletingAccount}>
+              {isDeletingAccount ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.confirmDeactivateButtonText}>
+                  Yes, Deactivate My Account
+                </Text>
+              )}
             </Pressable>
             <Pressable
               style={styles.cancelDeactivateButton}

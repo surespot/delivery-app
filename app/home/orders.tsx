@@ -88,9 +88,7 @@ export default function OrdersScreen() {
       markAsPickedUp(orderId);
       refetchActive();
     },
-    onError: (err) => {
-      console.error('WebSocket error:', err);
-    },
+    onError: () => {},
   });
 
   // Update store when API data changes

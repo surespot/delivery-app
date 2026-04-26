@@ -41,28 +41,14 @@ export const ordersApi = {
    */
   acceptOrder: async (orderId: string): Promise<AcceptOrderResponse> => {
     const payload = { orderId } as AcceptOrderRequest;
-
-    console.log('[ordersApi.acceptOrder] Request →', {
-      url: '/orders/rider/accept',
-      body: payload,
-    });
-
-    try {
-      const response = (await apiRequest<AcceptOrderResponse['data']>(
-        '/orders/rider/accept',
-        {
-          method: 'POST',
-          body: payload,
-          requiresAuth: true,
-        }
-      )) as AcceptOrderResponse;
-
-      console.log('[ordersApi.acceptOrder] Response ←', response);
-      return response;
-    } catch (error) {
-      console.log('[ordersApi.acceptOrder] Error ✕', error);
-      throw error;
-    }
+    return (await apiRequest<AcceptOrderResponse['data']>(
+      '/orders/rider/accept',
+      {
+        method: 'POST',
+        body: payload,
+        requiresAuth: true,
+      }
+    )) as AcceptOrderResponse;
   },
 
   /**
@@ -99,12 +85,6 @@ export const ordersApi = {
     data?: MarkDeliveredRequest
   ): Promise<MarkDeliveredResponse> => {
     const payload = data || {};
-
-    console.log('[ordersApi.markOrderAsDelivered] Request →', {
-      url: `/orders/rider/${orderId}/delivered`,
-      body: payload,
-    });
-
     return (await apiRequest<MarkDeliveredResponse['data']>(
       `/orders/rider/${orderId}/delivered`,
       {

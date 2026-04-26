@@ -1,113 +1,120 @@
 import { useAuthStore } from '@/store/auth-store';
 import { useEffect, useRef } from 'react';
-import { useUpdateLocation } from '../api/location/hooks';
 import { useGetCurrentRiderProfile } from '../api/onboarding/hooks';
-import { reverseGeocode } from '../services/geocoding-service';
+import {
+  isWithinTrackingHours,
+  msUntilHour,
+  saveRegionId,
+} from '../tasks/location-task';
 import { locationService } from '../services/location-service';
 
-const LOCATION_UPDATE_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const TRACKING_START_HOUR = 7;
+const TRACKING_END_HOUR = 21;
 
 export function useRiderLocationTracking() {
   const { isOnline } = useAuthStore();
-  const updateLocationMutation = useUpdateLocation();
   const { data: riderProfile } = useGetCurrentRiderProfile(isOnline);
   const isTrackingRef = useRef(false);
-  const lastUpdateTimeRef = useRef<number>(0);
+  const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Persist regionId to AsyncStorage whenever the profile loads so the
+  // background task (which has no React context) can read it directly.
+  useEffect(() => {
+    const regionId = riderProfile?.data?.regionId;
+    if (regionId) {
+      saveRegionId(regionId);
+    }
+  }, [riderProfile?.data?.regionId]);
 
   useEffect(() => {
-    if (!isOnline) {
-      // Stop tracking when offline
+    // Always clear any pending timers at the top of every run so stale
+    // timers from a previous dep-change don't fire unexpectedly.
+    if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
+    if (startTimerRef.current) clearTimeout(startTimerRef.current);
+
+    // Shared cleanup — returned from every code path.
+    const cleanup = () => {
+      if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
+      if (startTimerRef.current) clearTimeout(startTimerRef.current);
       if (isTrackingRef.current) {
-        locationService.stopLocationTracking();
+        locationService.stopLocationTracking().catch(() => {});
         isTrackingRef.current = false;
-        lastUpdateTimeRef.current = 0;
       }
-      return;
+    };
+
+    if (!isOnline) {
+      if (isTrackingRef.current) {
+        locationService.stopLocationTracking().catch(() => {});
+        isTrackingRef.current = false;
+      }
+      return cleanup;
     }
 
-    // Don't start tracking until we have the rider profile with regionId
     const regionId = riderProfile?.data?.regionId;
-    if (!regionId) {
-      return;
-    }
+    if (!regionId) return cleanup;
 
-    // Prevent starting tracking multiple times
-    if (isTrackingRef.current) {
-      return; // Already tracking, don't restart
-    }
+    // ── Helpers ─────────────────────────────────────────────────────────────
 
-    // Start tracking when online
     const startTracking = async () => {
+      if (isTrackingRef.current) return;
       try {
-        // Mark as tracking immediately to prevent multiple starts
         isTrackingRef.current = true;
-        
-        // Start location tracking - this will call onLocationUpdate every 5 minutes
-        await locationService.startLocationTracking(
-          async (location) => {
-            const now = Date.now();
-            // Ensure we don't update more frequently than every 5 minutes
-            if (now - lastUpdateTimeRef.current < LOCATION_UPDATE_INTERVAL) {
-              return;
-            }
-
-            try {
-              // Reverse geocode address
-              console.log(`[Location] Processing location update: ${location.latitude}, ${location.longitude}`);
-              const geocodedAddress = await reverseGeocode(
-                location.latitude,
-                location.longitude
-              );
-
-              if (!geocodedAddress) {
-                console.warn(`[Location] Failed to geocode address for coordinates: ${location.latitude}, ${location.longitude}`);
-                return;
-              }
-
-              // Update location via REST API
-              updateLocationMutation.mutate(
-                {
-                  streetAddress: geocodedAddress.streetAddress,
-                  latitude: location.latitude,
-                  longitude: location.longitude,
-                  state: geocodedAddress.state || '',
-                  country: geocodedAddress.country || '',
-                  regionId: regionId,
-                },
-                {
-                  onSuccess: () => {
-                    lastUpdateTimeRef.current = now;
-                    console.log(`[Location] Location updated successfully at ${new Date(now).toISOString()}`);
-                  },
-                  onError: (error) => {
-                    console.error('Error updating location:', error);
-                  },
-                }
-              );
-            } catch (error) {
-              console.error('Error processing location update:', error);
-            }
-          },
-          LOCATION_UPDATE_INTERVAL
-        );
-
-      } catch (error) {
-        console.error('Error starting location tracking:', error);
-        isTrackingRef.current = false; // Reset on error so it can retry
+        await locationService.startLocationTracking();
+      } catch {
+        isTrackingRef.current = false;
       }
     };
 
-    startTracking();
+    /**
+     * Stop tracking and schedule an automatic restart at 7 am.
+     * Uses Zustand's static getState() to read isOnline at timer-fire time,
+     * avoiding stale closure issues.
+     */
+    const stopAndScheduleRestart = () => {
+      locationService.stopLocationTracking().catch(() => {});
+      isTrackingRef.current = false;
 
-    // Only cleanup when going offline or component unmounts
-    return () => {
-      // Don't stop tracking on every render - only when actually going offline or unmounting
-      // The isOnline check above handles stopping when offline
+      startTimerRef.current = setTimeout(() => {
+        const { isOnline: stillOnline } = useAuthStore.getState();
+        if (!stillOnline) return;
+
+        startTracking();
+
+        // Schedule the next 9 pm stop after the 7 am restart.
+        stopTimerRef.current = setTimeout(
+          stopAndScheduleRestart,
+          msUntilHour(TRACKING_END_HOUR)
+        );
+      }, msUntilHour(TRACKING_START_HOUR));
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOnline, riderProfile?.data?.regionId]); // regionId won't change, so this will only run when going online/offline or when regionId first becomes available
 
-  return {
-    isTracking: isTrackingRef.current,
-  };
+    // ── Time-window gate ─────────────────────────────────────────────────────
+
+    if (!isWithinTrackingHours()) {
+      // Outside 07:00–21:00 — don't start yet; wait for 7 am.
+      startTimerRef.current = setTimeout(() => {
+        const { isOnline: stillOnline } = useAuthStore.getState();
+        if (!stillOnline) return;
+
+        startTracking();
+        stopTimerRef.current = setTimeout(
+          stopAndScheduleRestart,
+          msUntilHour(TRACKING_END_HOUR)
+        );
+      }, msUntilHour(TRACKING_START_HOUR));
+
+      return cleanup;
+    }
+
+    // Within 07:00–21:00 — start immediately and schedule the 9 pm stop.
+    startTracking();
+    stopTimerRef.current = setTimeout(
+      stopAndScheduleRestart,
+      msUntilHour(TRACKING_END_HOUR)
+    );
+
+    return cleanup;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline, riderProfile?.data?.regionId]);
 }

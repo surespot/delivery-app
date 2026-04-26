@@ -5,7 +5,7 @@ import {
   useWalletSummary,
   useWalletTransactions,
   formatTransactionDate,
-  getWalletErrorMessage,
+  getWalletErrorMessageFromError,
   type Period,
 } from '@/src/api/wallet';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -164,7 +164,9 @@ export default function WalletScreen() {
           text: 'Confirm',
           onPress: async () => {
             try {
-              await initiateWithdrawal.mutateAsync({ amount });
+              const result = await initiateWithdrawal.mutateAsync({ amount });
+              // eslint-disable-next-line no-console -- debug: inspect API response
+              console.log('[Wallet withdraw] success response', result);
               Alert.alert('Success', 'Withdrawal initiated successfully!', [
                 {
                   text: 'OK',
@@ -174,10 +176,15 @@ export default function WalletScreen() {
                   },
                 },
               ]);
-            } catch (error: any) {
-              const errorCode =
-                error?.response?.data?.error?.code || error?.data?.error?.code || 'UNKNOWN_ERROR';
-              const errorMessage = getWalletErrorMessage(errorCode);
+            } catch (error: unknown) {
+              // eslint-disable-next-line no-console -- debug: inspect API error
+              console.log('[Wallet withdraw] error', error, {
+                message: error instanceof Error ? error.message : (error as any)?.message,
+                data: (error as any)?.data,
+                response: (error as any)?.response,
+                cause: (error as any)?.cause,
+              });
+              const errorMessage = getWalletErrorMessageFromError(error);
               Alert.alert('Withdrawal Failed', errorMessage);
             }
           },

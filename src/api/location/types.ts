@@ -1,15 +1,16 @@
 // Location API Types
 
 export interface UpdateLocationRequest {
-  streetAddress: string;
   latitude: number;
   longitude: number;
-  state: string;
-  country: string;
   regionId: string;
+  streetAddress?: string;
+  state?: string;
+  country?: string;
 }
 
 export interface UpdateLocationResponse {
   success: boolean;
   message: string;
 }
+

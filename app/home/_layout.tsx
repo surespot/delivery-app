@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { useInitialLocationBroadcast } from '@/src/hooks/use-initial-location-broadcast';
 import { useRegisterPushToken } from '@/src/hooks/use-register-push-token';
+import { useRiderLocationTracking } from '@/src/hooks/use-rider-location';
 import { useAuthStore } from '@/store/auth-store';
 import {
   createNotificationsSocket,
@@ -12,8 +13,12 @@ import { createOrdersSocket, disconnectOrdersSocket } from '@/src/api/orders/web
 export default function HomeLayout() {
   const { isAuthenticated, isOnline } = useAuthStore();
 
-  // Broadcast location when app opens
+  // Broadcast location once on app open (one-shot, foreground only)
   useInitialLocationBroadcast();
+
+  // Continuous background location tracking — starts/stops with isOnline toggle
+  // and respects the 07:00–21:00 tracking window.
+  useRiderLocationTracking();
 
   // Register Expo push token with backend when authenticated
   useRegisterPushToken(isAuthenticated);
@@ -26,13 +31,8 @@ export default function HomeLayout() {
       return;
     }
 
-    createOrdersSocket().catch((error) => {
-      console.error('Error creating orders WebSocket from HomeLayout:', error);
-    });
-
-    createNotificationsSocket().catch((error) => {
-      console.error('Error creating notifications WebSocket from HomeLayout:', error);
-    });
+    createOrdersSocket().catch(() => {});
+    createNotificationsSocket().catch(() => {});
   }, [isAuthenticated, isOnline]);
 
   return (

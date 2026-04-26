@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { clearRegionId } from '../../tasks/location-task';
 import {
   clearTokens,
   getRefreshToken,
+  getSavedPushToken,
   onboardingApi,
   saveAuthToken,
   saveRefreshToken,
@@ -240,22 +242,26 @@ export const useRefreshToken = () => {
 };
 
 /**
- * Logout
+ * Logout — removes the Expo push token from the backend first so the server
+ * stops sending notifications to this device, then invalidates the session.
  */
 export const useLogout = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      const refreshToken = await getRefreshToken();
+      const [refreshToken, expoPushToken] = await Promise.all([
+        getRefreshToken(),
+        getSavedPushToken(),
+      ]);
       if (!refreshToken) {
         throw new Error('No refresh token found');
       }
-      return onboardingApi.logout({ refreshToken });
+      return onboardingApi.logout({ refreshToken, expoPushToken });
     },
     onSuccess: async () => {
-      // Clear all tokens from storage
-      await clearTokens();
-      // Clear all queries
+      // Clear all tokens and the cached regionId.
+      await Promise.all([clearTokens(), clearRegionId()]);
+      // Clear all React Query caches.
       queryClient.clear();
     },
   });
@@ -346,6 +352,19 @@ export const useUploadAvatar = () => {
       queryClient.invalidateQueries({
         queryKey: onboardingKeys.currentRider(),
       });
+    },
+  });
+};
+
+/**
+ * Permanently delete the authenticated rider's account and all associated data.
+ * Clears local tokens on success regardless of server response.
+ */
+export const useDeleteAccount = () => {
+  return useMutation({
+    mutationFn: () => onboardingApi.deleteAccount(),
+    onSettled: async () => {
+      await Promise.all([clearTokens(), clearRegionId()]);
     },
   });
 };

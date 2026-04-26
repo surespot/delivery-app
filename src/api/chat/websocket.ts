@@ -66,16 +66,14 @@ export async function createChatSocket(): Promise<Socket | null> {
     });
 
     socket.on('connect', () => {
-      console.log('Chat WebSocket connected');
+      // connected
     });
 
     socket.on('connected', (data: unknown) => {
-      console.log('Chat WebSocket authenticated:', data);
       notifyCallbacks('onConnected', data as any);
     });
 
     socket.on('new-message', (message: Message) => {
-      console.log('Chat WebSocket new message:', message);
       notifyCallbacks('onNewMessage', message);
     });
 
@@ -92,12 +90,10 @@ export async function createChatSocket(): Promise<Socket | null> {
     });
 
     socket.on('disconnect', () => {
-      console.log('Chat WebSocket disconnected');
       notifyCallbacks('onDisconnected');
     });
 
     socket.on('connect_error', (error) => {
-      console.error('Chat WebSocket connection error:', error);
       notifyCallbacks(
         'onError',
         error instanceof Error ? error : new Error(String(error))
@@ -105,7 +101,6 @@ export async function createChatSocket(): Promise<Socket | null> {
     });
 
     socket.on('error', (error) => {
-      console.error('Chat WebSocket error:', error);
       notifyCallbacks(
         'onError',
         error instanceof Error ? error : new Error(String(error))
@@ -114,7 +109,6 @@ export async function createChatSocket(): Promise<Socket | null> {
 
     return socket;
   } catch (error) {
-    console.error('Error creating chat socket:', error);
     notifyCallbacks(
       'onError',
       error instanceof Error ? error : new Error('Failed to create chat socket')

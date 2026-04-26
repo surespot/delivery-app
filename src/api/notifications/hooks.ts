@@ -144,8 +144,8 @@ export const useNotificationsWebSocket = (
     const unregister = registerNotificationsSocketCallbacks(enhancedCallbacks);
 
     if (!isNotificationsSocketConnected()) {
-      createNotificationsSocket().catch((error) => {
-        console.error('Error creating notifications WebSocket from hook:', error);
+      createNotificationsSocket().catch(() => {
+        // Socket will retry automatically via reconnection settings
       });
     }
 

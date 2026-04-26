@@ -65,3 +65,25 @@ export function getWalletErrorMessage(errorCode: string): string {
     'An error occurred. Please try again or contact support if the problem persists.'
   );
 }
+
+/**
+ * Prefer the server/thrown error message; fall back to code-based copy when no message.
+ */
+export function getWalletErrorMessageFromError(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  const e = error as {
+    message?: string;
+    response?: { data?: { error?: { code?: string; message?: string } } };
+    data?: { error?: { code?: string; message?: string } };
+  };
+  const fromApi =
+    e?.response?.data?.error?.message || e?.data?.error?.message;
+  if (typeof fromApi === 'string' && fromApi.trim()) {
+    return fromApi;
+  }
+  const code =
+    e?.response?.data?.error?.code || e?.data?.error?.code || 'UNKNOWN_ERROR';
+  return getWalletErrorMessage(code);
+}

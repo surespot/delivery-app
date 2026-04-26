@@ -43,6 +43,7 @@ export interface RiderProfile {
   createdAt?: string;
   updatedAt?: string;
   stats?: RiderStats;
+  avatar?: string | null;
 }
 
 export interface MaskedRiderProfile {

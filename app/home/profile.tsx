@@ -53,11 +53,6 @@ export default function ProfileScreen() {
       label: 'Support and Legal',
       icon: 'build' as const,
     },
-    {
-      id: '4',
-      label: 'Rate Us',
-      icon: 'star' as const,
-    },
   ];
 
   const handleNavPress = (key: string) => {
@@ -86,13 +81,10 @@ export default function ProfileScreen() {
           onPress: async () => {
             try {
               await logoutMutation.mutateAsync();
-              // Clear auth state
-              logout();
-              // Navigate to login screen
+              await logout();
               router.replace('/auth/login' as any);
             } catch (error) {
-              // Even if logout fails, clear local state
-              logout();
+              await logout();
               router.replace('/auth/login' as any);
               Alert.alert(
                 'Logout',
