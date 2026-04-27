@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useGetCurrentRiderProfile } from '@/src/api/onboarding/hooks';
 import { useUnreadCount } from '@/src/api/notifications';
 import {
@@ -18,6 +19,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
   Modal,
   Pressable,
   RefreshControl,
@@ -41,6 +43,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showLocationDisclosure, setShowLocationDisclosure] = useState(false);
   const { isOnline, setIsOnline, isDemoMode } = useAuthStore();
   const {
     isActive: isDemoActive,
@@ -242,6 +245,25 @@ export default function HomeScreen() {
     // Other navigation will be added when pages are created
   };
 
+  const handleToggleOnline = async () => {
+    if (isOnline) {
+      setIsOnline(false);
+      return;
+    }
+    const accepted = await AsyncStorage.getItem('location_disclosure_accepted');
+    if (accepted === 'true') {
+      setIsOnline(true);
+    } else {
+      setShowLocationDisclosure(true);
+    }
+  };
+
+  const handleAcceptDisclosure = async () => {
+    await AsyncStorage.setItem('location_disclosure_accepted', 'true');
+    setShowLocationDisclosure(false);
+    setIsOnline(true);
+  };
+
   const handleRefresh = async () => {
     if (isDemoMode) {
       setIsRefreshing(true);
@@ -343,7 +365,7 @@ export default function HomeScreen() {
         <View style={styles.toggleContainer}>
           <Pressable
             style={styles.toggle}
-            onPress={() => setIsOnline(!isOnline)}>
+            onPress={handleToggleOnline}>
             <View
               style={[
                 styles.toggleTrack,
@@ -558,6 +580,38 @@ export default function HomeScreen() {
         </View>
         )}
       </ScrollView>
+
+      {/* Location Disclosure Modal */}
+      <Modal
+        visible={showLocationDisclosure}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowLocationDisclosure(false)}>
+        <View style={styles.disclosureOverlay}>
+          <View style={styles.disclosureCard}>
+            <Feather name="map-pin" size={32} color="#FFD700" style={styles.disclosureIcon} />
+            <Text style={styles.disclosureTitle}>Location Access</Text>
+            <Text style={styles.disclosureBody}>
+              When you go online, Surespot Riders collects your location in the
+              background — even when the app is closed or not in use.
+            </Text>
+            <Text style={styles.disclosureBody}>
+              This is used to assign nearby delivery orders to you and keep your
+              position updated during active deliveries. Tracking only runs
+              between 7am and 9pm and stops the moment you go offline.
+            </Text>
+            <Text style={styles.disclosureBody}>
+              Your location is never collected while you are offline.
+            </Text>
+            <Pressable style={styles.disclosureButton} onPress={handleAcceptDisclosure}>
+              <Text style={styles.disclosureButtonText}>I understand, go online</Text>
+            </Pressable>
+            <Pressable onPress={() => setShowLocationDisclosure(false)}>
+              <Text style={styles.disclosureCancel}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       {/* Confirmation Code Modal */}
       <Modal
@@ -1206,6 +1260,51 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#1F1F1F',
+  },
+  disclosureOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  disclosureCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 32,
+    paddingBottom: 48,
+  },
+  disclosureIcon: {
+    marginBottom: 16,
+  },
+  disclosureTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F1F1F',
+    marginBottom: 16,
+  },
+  disclosureBody: {
+    fontSize: 14,
+    color: '#4F4F4F',
+    lineHeight: 22,
+    marginBottom: 12,
+  },
+  disclosureButton: {
+    backgroundColor: '#FFD700',
+    borderRadius: 999,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  disclosureButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F1F1F',
+  },
+  disclosureCancel: {
+    fontSize: 14,
+    color: '#7A7A7A',
+    textAlign: 'center',
   },
 });
 
