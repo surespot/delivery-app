@@ -4,6 +4,7 @@ import { useInitialLocationBroadcast } from '@/src/hooks/use-initial-location-br
 import { useRegisterPushToken } from '@/src/hooks/use-register-push-token';
 import { useRiderLocationTracking } from '@/src/hooks/use-rider-location';
 import { useAuthStore } from '@/store/auth-store';
+import { useDemoStore } from '@/src/demo/store';
 import {
   createNotificationsSocket,
   disconnectNotificationsSocket,
@@ -11,7 +12,8 @@ import {
 import { createOrdersSocket, disconnectOrdersSocket } from '@/src/api/orders/websocket';
 
 export default function HomeLayout() {
-  const { isAuthenticated, isOnline } = useAuthStore();
+  const { isAuthenticated, isOnline, isDemoMode } = useAuthStore();
+  const { addAvailableOrder } = useDemoStore();
 
   // Broadcast location once on app open (one-shot, foreground only)
   useInitialLocationBroadcast();
@@ -20,12 +22,12 @@ export default function HomeLayout() {
   // and respects the 07:00–21:00 tracking window.
   useRiderLocationTracking();
 
-  // Register Expo push token with backend when authenticated
-  useRegisterPushToken(isAuthenticated);
+  // Register Expo push token with backend when authenticated (not in demo)
+  useRegisterPushToken(isAuthenticated && !isDemoMode);
 
   // Manage shared WebSocket connections for the home stack
   useEffect(() => {
-    if (!isAuthenticated || !isOnline) {
+    if (isDemoMode || !isAuthenticated || !isOnline) {
       disconnectOrdersSocket();
       disconnectNotificationsSocket();
       return;
@@ -33,7 +35,16 @@ export default function HomeLayout() {
 
     createOrdersSocket().catch(() => {});
     createNotificationsSocket().catch(() => {});
-  }, [isAuthenticated, isOnline]);
+  }, [isAuthenticated, isOnline, isDemoMode]);
+
+  // Hourly demo order injection
+  useEffect(() => {
+    if (!isDemoMode) return;
+    const interval = setInterval(() => {
+      addAvailableOrder();
+    }, 60 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [isDemoMode, addAvailableOrder]);
 
   return (
     <Stack>

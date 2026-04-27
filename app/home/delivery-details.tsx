@@ -8,6 +8,8 @@ import {
 } from '@/src/api/chat';
 import { Order } from '@/src/api/orders/types';
 import { calculateDistance, formatPrice } from '@/src/api/orders/utils';
+import { DEMO_RIDER_ID } from '@/src/demo/constants';
+import { useDemoStore } from '@/src/demo/store';
 import { useAuthStore } from '@/store/auth-store';
 import { useOrdersStore } from '@/store/orders-store';
 import { Feather } from '@expo/vector-icons';
@@ -22,13 +24,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import Svg, { Path } from 'react-native-svg';
 
@@ -70,22 +72,23 @@ export default function DeliveryDetailsScreen() {
   const messageDraftRef = useRef('');
 
   const { currentOrders, availableOrders, completedOrders } = useOrdersStore();
-  const { user } = useAuthStore();
+  const { user, isDemoMode } = useAuthStore();
+  const { chatMessages, addChatMessage, scheduleBotReply } = useDemoStore();
 
-  // Chat API hooks
+  // Chat API hooks — disabled in demo mode
   const {
     data: conversationData,
     isLoading: isLoadingConversation,
-  } = useConversationByOrder(orderId, !!order && (order.status === 'out-for-delivery' || order.status === 'delivered'));
+  } = useConversationByOrder(orderId, !isDemoMode && !!order && (order.status === 'out-for-delivery' || order.status === 'delivered'));
 
-  const conversationId = conversationData?.data?.id;
-  const conversation = conversationData?.data;
+  const conversationId = isDemoMode ? undefined : conversationData?.data?.id;
+  const conversation = isDemoMode ? undefined : conversationData?.data;
 
   const {
     data: messagesData,
     isLoading: isLoadingMessages,
     refetch: refetchMessages,
-  } = useMessages(conversationId, undefined, 50, !!conversationId);
+  } = useMessages(conversationId, undefined, 50, !isDemoMode && !!conversationId);
 
   const sendMessageMutation = useSendMessage();
   const markAsReadMutation = useMarkAsRead();
@@ -93,10 +96,13 @@ export default function DeliveryDetailsScreen() {
   // Get customer info from conversation
   const customerParticipant = conversation?.participants.find((p) => p.role === 'user');
   const customer = customerParticipant?.user;
-  
+
   // Get rider info from conversation to identify own messages
   const riderParticipant = conversation?.participants.find((p) => p.role === 'rider');
-  const riderId = riderParticipant?.userId;
+  const riderId = isDemoMode ? DEMO_RIDER_ID : riderParticipant?.userId;
+
+  // Demo: messages from demo store for this order
+  const demoMessages = chatMessages[orderId ?? ''] ?? [];
 
   const dashAnimations = useRef<Animated.Value[]>(
     Array.from({ length: 15 }, () => new Animated.Value(0))
@@ -105,9 +111,12 @@ export default function DeliveryDetailsScreen() {
   const chatScrollViewRef = useRef<ScrollView>(null);
   const dashAnimationRefs = useRef<Animated.CompositeAnimation[]>([]);
 
-  // Format messages from API
-  const messages: Message[] = messagesData?.data?.messages || [];
-  const sortedMessages = [...messages].reverse(); // Reverse to show oldest first
+  // Format messages from API or demo store
+  const messages: Message[] = isDemoMode ? [] : (messagesData?.data?.messages || []);
+  // Real API returns newest-first; demo messages are already oldest-first
+  const sortedMessages = isDemoMode
+    ? (demoMessages as unknown as Message[])
+    : [...messages].reverse();
 
   // Unread messages: customer messages that are not read
   const hasUnreadMessages =
@@ -228,7 +237,7 @@ export default function DeliveryDetailsScreen() {
   useEffect(() => {
     if (activeTab === 'chat' && sortedMessages.length > 0) {
       setTimeout(() => {
-        chatScrollViewRef.current?.scrollToEnd({ animated: false });
+        chatScrollViewRef.current?.scrollToEnd({ animated: sortedMessages.length > 1 });
       }, 0);
     }
   }, [activeTab, sortedMessages.length]);
@@ -260,16 +269,21 @@ export default function DeliveryDetailsScreen() {
   const handleSendMessage = async () => {
     if (!order || order.status !== 'out-for-delivery') return;
 
-    // Android's multiline TextInput batches onChangeText callbacks.
-    // Wait 150ms for any pending text updates to arrive via onChangeText,
-    // which keeps updating messageDraftRef.current.
-    // Do NOT blur yet — that can interfere with pending IME text.
     await new Promise((resolve) => setTimeout(resolve, 150));
-
-    // Now read the most up-to-date text from our ref (updated by onChangeText)
     const currentMessage = messageDraftRef.current.trim();
-
     if (!currentMessage) return;
+
+    if (isDemoMode) {
+      addChatMessage(order.id, currentMessage, false);
+      messageDraftRef.current = '';
+      setMessage('');
+      messageInputRef.current?.clear();
+      scheduleBotReply(order.id);
+      setTimeout(() => {
+        chatScrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+      return;
+    }
 
     try {
       await sendMessageMutation.mutateAsync({
@@ -277,7 +291,6 @@ export default function DeliveryDetailsScreen() {
         content: currentMessage,
       });
 
-      // Clear after successful send
       messageDraftRef.current = '';
       setMessage('');
       messageInputRef.current?.clear();
@@ -337,8 +350,10 @@ export default function DeliveryDetailsScreen() {
   }
 
   const isActive = order.status === 'ready' || order.status === 'out-for-delivery';
-  const canChat = order.status === 'out-for-delivery' || order.status === 'delivered';
-  const isReadOnly = order.status === 'delivered';
+  const canChat = isDemoMode
+    ? (order.status === 'ready' || order.status === 'out-for-delivery')
+    : (order.status === 'out-for-delivery' || order.status === 'delivered');
+  const isReadOnly = !isDemoMode && order.status === 'delivered';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -489,7 +504,7 @@ export default function DeliveryDetailsScreen() {
               </Text>
 
               {/* Messages */}
-              {isLoadingMessages ? (
+              {isLoadingMessages && !isDemoMode ? (
                 <View style={styles.messagesLoadingContainer}>
                   <ActivityIndicator size="small" color="#7A7A7A" />
                 </View>
@@ -500,7 +515,7 @@ export default function DeliveryDetailsScreen() {
                   contentContainerStyle={styles.messagesContent}
                   showsVerticalScrollIndicator={false}>
                   {sortedMessages.map((msg) => {
-                    const isRider = msg.sender?._id === riderId;
+                    const isRider = msg.senderId === riderId;
                     return (
                       <View key={msg.id} style={styles.messageWrapper}>
                         <View
@@ -534,7 +549,7 @@ export default function DeliveryDetailsScreen() {
                 <View style={styles.inputContainer}>
                   <TextInput
                     ref={messageInputRef}
-                    key={conversationId ?? 'chat-input'}
+                    key={conversationId ?? orderId ?? 'chat-input'}
                     style={styles.messageInput}
                     placeholder="Type in a message"
                     placeholderTextColor="#9e9e9e"

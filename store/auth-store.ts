@@ -50,6 +50,8 @@ interface AuthState {
   setAuthenticated: (value: boolean) => void;
   isOnline: boolean;
   setIsOnline: (value: boolean) => void;
+  isDemoMode: boolean;
+  setDemoMode: (value: boolean) => void;
   user: User | null;
   accessToken: string | null;
   refreshToken: string | null;
@@ -66,6 +68,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
   isLoading: true,
   isOnline: false,
+  isDemoMode: false,
 
   user: null,
   accessToken: null,
@@ -74,6 +77,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setAuthenticated: (value) => set({ isAuthenticated: value }),
   setIsOnline: (value) => set({ isOnline: value }),
+  setDemoMode: (value) => set({ isDemoMode: value }),
 
   setUser: (user) => {
     set({ user });
@@ -118,6 +122,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     set({
       isAuthenticated: false,
+      isDemoMode: false,
       user: null,
       accessToken: null,
       refreshToken: null,

@@ -1,6 +1,8 @@
 import { useOrdersStore } from '@/store/orders-store';
 import { useEligibleOrders, useAcceptOrder, useOrdersWebSocket } from '@/src/api/orders/hooks';
 import { getErrorMessage } from '@/src/api/orders/utils';
+import { useDemoStore } from '@/src/demo/store';
+import { useAuthStore } from '@/store/auth-store';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -25,35 +27,37 @@ const MAX_PRICE = 50000;
 
 export default function AvailableOrdersScreen() {
   const router = useRouter();
-  const { 
-    availableOrders, 
-    addCurrentOrder, 
-    currentOrders, 
+  const { isDemoMode } = useAuthStore();
+  const { acceptOrder: demoAcceptOrder } = useDemoStore();
+  const {
+    availableOrders,
+    addCurrentOrder,
+    currentOrders,
     setAvailableOrders,
     setError,
-    clearError 
+    clearError
   } = useOrdersStore();
-  
-  // API hooks
-  const { data: eligibleOrdersData, isLoading, error, refetch } = useEligibleOrders(1, 20, 'ready');
+
+  // API hooks — disabled in demo mode
+  const { data: eligibleOrdersData, isLoading, error, refetch } = useEligibleOrders(1, 20, 'ready', !isDemoMode);
   const acceptOrderMutation = useAcceptOrder();
-  
-  // WebSocket connection for real-time updates
-  useOrdersWebSocket(true, {
+
+  // WebSocket connection for real-time updates — disabled in demo mode
+  useOrdersWebSocket(!isDemoMode, {
     onOrderReady: () => {
-      // Refresh eligible orders when new order becomes ready
       refetch();
     },
     onError: () => {},
   });
 
-  // Update store when API data changes
+  // Update store when API data changes (real mode only)
   useEffect(() => {
+    if (isDemoMode) return;
     if (eligibleOrdersData?.data?.orders) {
       setAvailableOrders(eligibleOrdersData.data.orders);
       clearError();
     }
-  }, [eligibleOrdersData, setAvailableOrders, clearError]);
+  }, [isDemoMode, eligibleOrdersData, setAvailableOrders, clearError]);
 
   // Handle API errors
   useEffect(() => {
@@ -177,17 +181,21 @@ export default function AvailableOrdersScreen() {
       return;
     }
 
+    if (isDemoMode) {
+      demoAcceptOrder(orderId);
+      Alert.alert('Success', 'Order accepted successfully!');
+      return;
+    }
+
     try {
       clearError();
       await acceptOrderMutation.mutateAsync(orderId);
-      // Success - the mutation will invalidate queries and update the store
       Alert.alert('Success', 'Order accepted successfully!');
     } catch (err: any) {
       const errorMessage = err?.message || 'Failed to accept order';
       const errorCode = err?.response?.data?.error?.code || '';
-      
+
       if (errorCode === 'ORDER_ALREADY_ASSIGNED' || errorCode === 'MAX_ORDERS_REACHED') {
-        // Refresh the list to get updated data
         refetch();
         Alert.alert('Order Unavailable', getErrorMessage(errorCode) || errorMessage);
       } else {

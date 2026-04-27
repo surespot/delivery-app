@@ -12,8 +12,8 @@ const TRACKING_START_HOUR = 7;
 const TRACKING_END_HOUR = 21;
 
 export function useRiderLocationTracking() {
-  const { isOnline } = useAuthStore();
-  const { data: riderProfile } = useGetCurrentRiderProfile(isOnline);
+  const { isOnline, isDemoMode } = useAuthStore();
+  const { data: riderProfile } = useGetCurrentRiderProfile(isOnline && !isDemoMode);
   const isTrackingRef = useRef(false);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -43,7 +43,7 @@ export function useRiderLocationTracking() {
       }
     };
 
-    if (!isOnline) {
+    if (!isOnline || isDemoMode) {
       if (isTrackingRef.current) {
         locationService.stopLocationTracking().catch(() => {});
         isTrackingRef.current = false;
@@ -92,7 +92,6 @@ export function useRiderLocationTracking() {
     // ── Time-window gate ─────────────────────────────────────────────────────
 
     if (!isWithinTrackingHours()) {
-      // Outside 07:00–21:00 — don't start yet; wait for 7 am.
       startTimerRef.current = setTimeout(() => {
         const { isOnline: stillOnline } = useAuthStore.getState();
         if (!stillOnline) return;
@@ -116,5 +115,5 @@ export function useRiderLocationTracking() {
 
     return cleanup;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOnline, riderProfile?.data?.regionId]);
+  }, [isOnline, isDemoMode, riderProfile?.data?.regionId]);
 }

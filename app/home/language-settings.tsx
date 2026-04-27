@@ -3,13 +3,13 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { SvgXml } from 'react-native-svg';
 import * as FlagStrings from 'country-flag-icons/string/3x2';
 

@@ -7,7 +7,8 @@ import {
   useMarkOrderAsDelivered,
   useOrdersWebSocket,
 } from '@/src/api/orders/hooks';
-import { getErrorMessage } from '@/src/api/orders/utils';
+import { getErrorMessage, transformOrderForUI } from '@/src/api/orders/utils';
+import { useDemoStore } from '@/src/demo/store';
 import { useAuthStore } from '@/store/auth-store';
 import { useOrdersStore } from '@/store/orders-store';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -19,6 +20,7 @@ import {
   Image,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -38,7 +40,15 @@ const CODE_LENGTH = 4;
 export default function HomeScreen() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
-  const { isOnline, setIsOnline } = useAuthStore();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { isOnline, setIsOnline, isDemoMode } = useAuthStore();
+  const {
+    isActive: isDemoActive,
+    availableOrders: demoAvailableOrders,
+    currentOrders: demoCurrentOrders,
+    acceptOrder: demoAcceptOrder,
+    completeOrder: demoCompleteOrder,
+  } = useDemoStore();
   const [activeNav, setActiveNav] = useState('home');
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -53,28 +63,28 @@ export default function HomeScreen() {
     markAsPickedUp,
   } = useOrdersStore();
 
-  // API hooks
+  // API hooks — disabled in demo mode
   const { data: activeOrdersData, isLoading: isLoadingActive, refetch: refetchActive } = useAssignedOrders(
     1,
     20,
-    undefined, // Get all assigned orders (ready + out-for-delivery)
-    isOnline
+    undefined,
+    isOnline && !isDemoMode
   );
 
   const { data: eligibleOrdersData, isLoading: isLoadingAvailable, refetch: refetchAvailable } = useEligibleOrders(
     1,
     20,
     'ready',
-    isOnline
+    isOnline && !isDemoMode
   );
 
   const acceptOrderMutation = useAcceptOrder();
   const markDeliveredMutation = useMarkOrderAsDelivered();
-  const { data: unreadData } = useUnreadCount(isOnline);
+  const { data: unreadData } = useUnreadCount(isOnline && !isDemoMode);
   const unreadCount = unreadData?.data?.unreadCount ?? 0;
 
   // Get current rider profile for name and avatar
-  const { data: riderProfileData } = useGetCurrentRiderProfile(isOnline);
+  const { data: riderProfileData } = useGetCurrentRiderProfile(isOnline && !isDemoMode);
   const riderName = riderProfileData?.data?.firstName || 'Rider';
   const { user } = useAuthStore();
   const avatarUrl = user?.avatar || riderProfileData?.data?.avatar || null;
@@ -98,22 +108,34 @@ export default function HomeScreen() {
     onError: () => {},
   });
 
-  // Update store when API data changes
+  // Update store when API data changes (real mode)
   useEffect(() => {
+    if (isDemoMode) return;
     if (activeOrdersData?.data?.orders) {
-      // Filter to only show ready and out-for-delivery orders
       const activeOrders = activeOrdersData.data.orders.filter(
         order => order.status === 'ready' || order.status === 'out-for-delivery'
       );
       setCurrentOrders(activeOrders);
     }
-  }, [activeOrdersData, setCurrentOrders]);
+  }, [activeOrdersData, setCurrentOrders, isDemoMode]);
 
   useEffect(() => {
+    if (isDemoMode) return;
     if (eligibleOrdersData?.data?.orders) {
       setAvailableOrders(eligibleOrdersData.data.orders);
     }
-  }, [eligibleOrdersData, setAvailableOrders]);
+  }, [eligibleOrdersData, setAvailableOrders, isDemoMode]);
+
+  // Sync demo store → orders store
+  useEffect(() => {
+    if (!isDemoMode || !isDemoActive) return;
+    setAvailableOrders(demoAvailableOrders);
+  }, [isDemoMode, isDemoActive, demoAvailableOrders, setAvailableOrders]);
+
+  useEffect(() => {
+    if (!isDemoMode || !isDemoActive) return;
+    setCurrentOrders(demoCurrentOrders);
+  }, [isDemoMode, isDemoActive, demoCurrentOrders, setCurrentOrders]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -129,6 +151,12 @@ export default function HomeScreen() {
       return;
     }
 
+    if (isDemoMode) {
+      demoAcceptOrder(orderId);
+      Alert.alert('Success', 'Order accepted successfully!');
+      return;
+    }
+
     try {
       await acceptOrderMutation.mutateAsync(orderId);
       Alert.alert('Success', 'Order accepted successfully!');
@@ -137,7 +165,7 @@ export default function HomeScreen() {
     } catch (err: any) {
       const errorMessage = err?.message || 'Failed to accept order';
       const errorCode = err?.response?.data?.error?.code || '';
-      
+
       if (errorCode === 'ORDER_ALREADY_ASSIGNED' || errorCode === 'MAX_ORDERS_REACHED') {
         refetchAvailable();
         Alert.alert('Order Unavailable', getErrorMessage(errorCode) || errorMessage);
@@ -157,9 +185,15 @@ export default function HomeScreen() {
   const handleConfirmDelivery = async () => {
     if (!selectedOrderId) return;
 
-    // Validate code format
     if (!/^[0-9]{4}$/.test(confirmationCode)) {
       setCodeError('Code must be exactly 4 digits');
+      return;
+    }
+
+    if (isDemoMode) {
+      demoCompleteOrder(selectedOrderId);
+      setShowConfirmationModal(false);
+      Alert.alert('Success', 'Order marked as delivered!');
       return;
     }
 
@@ -173,7 +207,7 @@ export default function HomeScreen() {
       refetchActive();
     } catch (err: any) {
       const errorCode = err?.response?.data?.error?.code || '';
-      
+
       if (errorCode === 'INVALID_CONFIRMATION_CODE') {
         setCodeError('Invalid code. Please verify with customer.');
         setConfirmationCode('');
@@ -206,6 +240,18 @@ export default function HomeScreen() {
       router.push('/home/profile' as any);
     }
     // Other navigation will be added when pages are created
+  };
+
+  const handleRefresh = async () => {
+    if (isDemoMode) {
+      setIsRefreshing(true);
+      await new Promise((r) => setTimeout(r, 600));
+      setIsRefreshing(false);
+      return;
+    }
+    setIsRefreshing(true);
+    await Promise.all([refetchActive(), refetchAvailable()]);
+    setIsRefreshing(false);
   };
 
   if (isLoading) {
@@ -251,7 +297,15 @@ export default function HomeScreen() {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={['#FFD700']}
+            tintColor="#FFD700"
+          />
+        }>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.profileSection}>
@@ -277,6 +331,13 @@ export default function HomeScreen() {
             )}
           </Pressable>
         </View>
+
+        {/* Demo Banner */}
+        {isDemoMode && (
+          <View style={styles.demoBanner}>
+            <Text style={styles.demoBannerText}>Demo Mode — Orders are simulated</Text>
+          </View>
+        )}
 
         {/* Online Toggle */}
         <View style={styles.toggleContainer}>
@@ -724,6 +785,19 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  demoBanner: {
+    backgroundColor: '#1F1F1F',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  demoBannerText: {
+    color: '#FFD700',
+    fontSize: 12,
+    fontWeight: '600',
   },
   toggleContainer: {
     marginBottom: 32,

@@ -97,3 +97,4 @@ expo-env.d.ts
 
 *.md
 !README.md
+.claude

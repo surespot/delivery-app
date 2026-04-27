@@ -1,5 +1,6 @@
 import { useAuthStore } from '@/store/auth-store';
 import { useGetCurrentRiderProfile, useLogout } from '@/src/api/onboarding';
+import { useDemoStore } from '@/src/demo/store';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -23,13 +24,33 @@ const NAV_ITEMS = [
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { isOnline, setIsOnline, logout, user } = useAuthStore();
+  const { isOnline, setIsOnline, logout, user, isDemoMode } = useAuthStore();
   const [activeNav, setActiveNav] = useState('profile');
   const logoutMutation = useLogout();
-  const { data: profileResponse, isLoading: isLoadingProfile } = useGetCurrentRiderProfile();
-  
+  const { data: profileResponse, isLoading: isLoadingProfile } = useGetCurrentRiderProfile(!isDemoMode);
+  const {
+    completedOrdersCount,
+    totalEarningsKobo,
+    totalDistanceKm,
+    sessionStartMs,
+  } = useDemoStore();
+
   const profile = profileResponse?.data;
   const stats = profile?.stats?.today;
+
+  const demoStats = isDemoMode ? (() => {
+    const elapsedMs = sessionStartMs ? Date.now() - sessionStartMs : 0;
+    const totalMins = Math.floor(elapsedMs / 60000);
+    const hours = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    const naira = totalEarningsKobo / 100;
+    return {
+      completedOrders: completedOrdersCount,
+      distanceCoveredFormatted: `${totalDistanceKm} km`,
+      timeOnlineFormatted: `${hours}h ${mins}m`,
+      earningsFormatted: `₦${naira.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    };
+  })() : null;
 
   const initials = `${(profile?.firstName?.[0] ?? user?.firstName?.[0] ?? 'S').toUpperCase()}${(
     profile?.lastName?.[0] ?? user?.lastName?.[0] ?? 'S'
@@ -42,11 +63,6 @@ export default function ProfileScreen() {
       id: '1',
       label: 'Account & Personal Information',
       icon: 'person' as const,
-    },
-    {
-      id: '2',
-      label: 'Settings',
-      icon: 'settings' as const,
     },
     {
       id: '3',
@@ -121,7 +137,11 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.profileInfo}>
             <Text style={styles.userName}>
-              {profile ? `${profile.firstName} ${profile.lastName}` : 'Loading...'}
+              {profile
+                ? `${profile.firstName} ${profile.lastName}`
+                : user
+                ? `${user.firstName} ${user.lastName}`
+                : 'Loading...'}
             </Text>
             <Text style={styles.userRole}>surespot courier</Text>
           </View>
@@ -152,8 +172,8 @@ export default function ProfileScreen() {
 
         {/* Today's Stats Section */}
         <View style={styles.statsSection}>
-          <Text style={styles.sectionTitle}>Today&apos;s Stats</Text>
-          {isLoadingProfile ? (
+          <Text style={styles.sectionTitle}>{isDemoMode ? 'Session Stats' : "Today's Stats"}</Text>
+          {isLoadingProfile && !isDemoMode ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="small" color="#1F1F1F" />
             </View>
@@ -162,25 +182,25 @@ export default function ProfileScreen() {
               <View style={styles.statCard}>
                 <Text style={styles.statLabel}>Completed Orders</Text>
                 <Text style={styles.statValue}>
-                  {stats?.completedOrders ?? 0}
+                  {(demoStats ?? stats)?.completedOrders ?? 0}
                 </Text>
               </View>
               <View style={styles.statCard}>
                 <Text style={styles.statLabel}>Distance Covered</Text>
                 <Text style={styles.statValue}>
-                  {stats?.distanceCoveredFormatted ?? '0 km'}
+                  {(demoStats ?? stats)?.distanceCoveredFormatted ?? '0 km'}
                 </Text>
               </View>
               <View style={styles.statCard}>
                 <Text style={styles.statLabel}>Time Online</Text>
                 <Text style={styles.statValue}>
-                  {stats?.timeOnlineFormatted ?? '0h 0m'}
+                  {(demoStats ?? stats)?.timeOnlineFormatted ?? '0h 0m'}
                 </Text>
               </View>
               <View style={styles.statCard}>
                 <Text style={styles.statLabel}>Earnings</Text>
                 <Text style={styles.statValue}>
-                  {stats?.earningsFormatted ?? '₦0.00'}
+                  {(demoStats ?? stats)?.earningsFormatted ?? '₦0.00'}
                 </Text>
               </View>
             </View>
@@ -197,8 +217,6 @@ export default function ProfileScreen() {
                 onPress={() => {
                   if (item.id === '1') {
                     router.push('/home/account-information' as any);
-                  } else if (item.id === '2') {
-                    router.push('/home/settings' as any);
                   } else if (item.id === '3') {
                     router.push('/home/support-legal' as any);
                   }

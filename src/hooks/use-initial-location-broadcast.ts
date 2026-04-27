@@ -1,3 +1,4 @@
+import { useAuthStore } from '@/store/auth-store';
 import { useEffect, useRef } from 'react';
 import { useUpdateLocation } from '../api/location/hooks';
 import { useGetCurrentRiderProfile } from '../api/onboarding/hooks';
@@ -9,11 +10,13 @@ import { locationService } from '../services/location-service';
  * Geocode fields are omitted — the backend treats them as optional.
  */
 export function useInitialLocationBroadcast() {
+  const { isDemoMode } = useAuthStore();
   const updateLocationMutation = useUpdateLocation();
-  const { data: riderProfile } = useGetCurrentRiderProfile(true);
+  const { data: riderProfile } = useGetCurrentRiderProfile(!isDemoMode);
   const hasBroadcastRef = useRef(false);
 
   useEffect(() => {
+    if (isDemoMode) return;
     // Only broadcast once per app session
     if (hasBroadcastRef.current) {
       return;

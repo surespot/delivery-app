@@ -8,12 +8,12 @@ import {
   ActivityIndicator,
   Pressable,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type FilterTab = 'All' | 'Pending' | 'In Progress' | 'Resolved' | 'Closed';
 

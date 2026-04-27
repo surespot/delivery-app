@@ -1,4 +1,12 @@
+import { useAuthStore } from '@/store/auth-store';
+import {
+  DEMO_PAYMENT_DETAILS,
+  DEMO_WALLET_BALANCE,
+  DEMO_WALLET_SUMMARY,
+  DEMO_WALLET_TRANSACTIONS,
+} from '@/src/demo/data';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Alert } from 'react-native';
 import { walletApi } from './client';
 import type {
   AddPaymentDetailsRequest,
@@ -21,9 +29,10 @@ export const walletKeys = {
  * Get wallet balance for the authenticated rider
  */
 export const useWalletBalance = (enabled: boolean = true) => {
+  const { isDemoMode } = useAuthStore();
   return useQuery({
     queryKey: walletKeys.balance(),
-    queryFn: () => walletApi.getWalletBalance(),
+    queryFn: () => isDemoMode ? Promise.resolve(DEMO_WALLET_BALANCE) : walletApi.getWalletBalance(),
     enabled,
     retry: 2,
     refetchOnWindowFocus: true,
@@ -37,9 +46,10 @@ export const useWalletTransactions = (
   params: WalletTransactionsParams = {},
   enabled: boolean = true
 ) => {
+  const { isDemoMode } = useAuthStore();
   return useQuery({
     queryKey: walletKeys.transactions(params),
-    queryFn: () => walletApi.getWalletTransactions(params),
+    queryFn: () => isDemoMode ? Promise.resolve(DEMO_WALLET_TRANSACTIONS) : walletApi.getWalletTransactions(params),
     enabled,
     retry: 2,
     refetchOnWindowFocus: false,
@@ -53,9 +63,10 @@ export const useWalletSummary = (
   period: Period = 'all-time',
   enabled: boolean = true
 ) => {
+  const { isDemoMode } = useAuthStore();
   return useQuery({
     queryKey: walletKeys.summary(period),
-    queryFn: () => walletApi.getWalletSummary(period),
+    queryFn: () => isDemoMode ? Promise.resolve(DEMO_WALLET_SUMMARY) : walletApi.getWalletSummary(period),
     enabled,
     retry: 2,
     refetchOnWindowFocus: false,
@@ -66,9 +77,10 @@ export const useWalletSummary = (
  * Get payment details (bank account information)
  */
 export const usePaymentDetails = (enabled: boolean = true) => {
+  const { isDemoMode } = useAuthStore();
   return useQuery({
     queryKey: walletKeys.paymentDetails(),
-    queryFn: () => walletApi.getPaymentDetails(),
+    queryFn: () => isDemoMode ? Promise.resolve(DEMO_PAYMENT_DETAILS) : walletApi.getPaymentDetails(),
     enabled,
     retry: 2,
     refetchOnWindowFocus: false,
@@ -79,10 +91,16 @@ export const usePaymentDetails = (enabled: boolean = true) => {
  * Initiate withdrawal from wallet to bank account
  */
 export const useInitiateWithdrawal = () => {
+  const { isDemoMode } = useAuthStore();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: InitiateWithdrawalRequest) =>
-      walletApi.initiateWithdrawal(data),
+    mutationFn: (data: InitiateWithdrawalRequest) => {
+      if (isDemoMode) {
+        Alert.alert('Demo Mode', 'Withdrawals are not available in demo mode.');
+        return Promise.reject(new Error('Demo mode'));
+      }
+      return walletApi.initiateWithdrawal(data);
+    },
     onSuccess: () => {
       // Invalidate balance to refresh after withdrawal
       queryClient.invalidateQueries({

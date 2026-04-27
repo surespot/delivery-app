@@ -2,14 +2,15 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
+  Modal,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface SettingToggle {
   id: string;
@@ -65,6 +66,22 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      {/* Coming Soon Modal */}
+      <Modal visible transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalEmoji}>🚧</Text>
+            <Text style={styles.modalTitle}>Coming Soon</Text>
+            <Text style={styles.modalBody}>
+              Settings are still being built. Check back in a future update.
+            </Text>
+            <Pressable style={styles.modalButton} onPress={() => router.back()}>
+              <Text style={styles.modalButtonText}>Go Back</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
@@ -126,6 +143,48 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    width: '100%',
+  },
+  modalEmoji: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1f1f1f',
+    marginBottom: 12,
+  },
+  modalBody: {
+    fontSize: 14,
+    color: '#7A7A7A',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  modalButton: {
+    backgroundColor: '#FFD700',
+    borderRadius: 999,
+    paddingVertical: 14,
+    paddingHorizontal: 48,
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1f1f1f',
+  },
   safe: {
     flex: 1,
     backgroundColor: '#FFFBEA',
