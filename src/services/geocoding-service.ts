@@ -1,4 +1,4 @@
-import { locationApi } from '../api/location';
+import * as Location from 'expo-location';
 
 export interface GeocodedAddress {
   streetAddress: string;
@@ -9,20 +9,36 @@ export interface GeocodedAddress {
   postalCode?: string;
 }
 
-/**
- * Reverse geocode coordinates to a human-readable address.
- * Delegates to the backend, which holds the mapping API key server-side.
- */
 export async function reverseGeocode(
   latitude: number,
   longitude: number
 ): Promise<GeocodedAddress | null> {
   try {
-    const response = await locationApi.reverseGeocode(latitude, longitude);
-    if (response.data) {
-      return response.data;
-    }
-    return null;
+    const results = await Location.reverseGeocodeAsync({ latitude, longitude });
+    if (!results.length) return null;
+
+    const addr = results[0];
+    const parts = [
+      addr.streetNumber,
+      addr.street,
+      addr.district,
+      addr.city,
+      addr.region,
+      addr.country,
+    ].filter(Boolean);
+
+    const streetAddress = [addr.streetNumber, addr.street]
+      .filter(Boolean)
+      .join(' ');
+
+    return {
+      streetAddress: streetAddress || addr.name || '',
+      address: parts.join(', ') || addr.name || '',
+      city: addr.city ?? undefined,
+      state: addr.region ?? undefined,
+      country: addr.country ?? undefined,
+      postalCode: addr.postalCode ?? undefined,
+    };
   } catch {
     return null;
   }

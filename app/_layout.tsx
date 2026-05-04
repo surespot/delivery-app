@@ -71,7 +71,7 @@ function RootNavigation() {
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
         <Stack.Screen name="+not-found" options={{ title: 'Not Found' }} />
       </Stack>
-      <StatusBar style="auto" />
+      <StatusBar style="light" backgroundColor="#1F1F1F" />
     </ThemeProvider>
   );
 }
