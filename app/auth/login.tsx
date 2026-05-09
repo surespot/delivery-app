@@ -22,7 +22,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { setAuthenticated, setUser, setAccessToken, setDemoMode } = useAuthStore();
+  const { setAuthenticated, setUser, setAccessToken, setDemoMode, setIsOnline } = useAuthStore();
   const { activate: activateDemo } = useDemoStore();
   const login = useLogin();
 
@@ -34,12 +34,14 @@ export default function LoginScreen() {
       const lon = location?.longitude ?? 3.3792;
       setUser(DEMO_USER);
       setDemoMode(true);
+      setIsOnline(true);
       setAuthenticated(true);
       activateDemo(lat, lon);
       router.replace('/home' as any);
     } catch {
       setUser(DEMO_USER);
       setDemoMode(true);
+      setIsOnline(true);
       setAuthenticated(true);
       activateDemo(6.5244, 3.3792);
       router.replace('/home' as any);

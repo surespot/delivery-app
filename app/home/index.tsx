@@ -354,13 +354,6 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {/* Demo Banner */}
-        {isDemoMode && (
-          <View style={styles.demoBanner}>
-            <Text style={styles.demoBannerText}>Demo Mode — Orders are simulated</Text>
-          </View>
-        )}
-
         {/* Online Toggle */}
         <View style={styles.toggleContainer}>
           <Pressable
@@ -839,19 +832,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#FFFFFF',
-  },
-  demoBanner: {
-    backgroundColor: '#1F1F1F',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginBottom: 12,
-    alignItems: 'center',
-  },
-  demoBannerText: {
-    color: '#FFD700',
-    fontSize: 12,
-    fontWeight: '600',
   },
   toggleContainer: {
     marginBottom: 32,

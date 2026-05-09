@@ -1,8 +1,10 @@
 import { useOrdersStore } from '@/store/orders-store';
-import { 
-  useAssignedOrders, 
-  useEligibleOrders, 
-  useAcceptOrder, 
+import { useAuthStore } from '@/store/auth-store';
+import { useDemoStore } from '@/src/demo/store';
+import {
+  useAssignedOrders,
+  useEligibleOrders,
+  useAcceptOrder,
   useMarkOrderAsDelivered,
   useOrdersWebSocket,
 } from '@/src/api/orders/hooks';
@@ -42,6 +44,9 @@ export default function OrdersScreen() {
   const [codeError, setCodeError] = useState('');
   const codeInputRef = useRef<TextInput>(null);
   
+  const { isDemoMode } = useAuthStore();
+  const { completeOrder: demoCompleteOrder } = useDemoStore();
+
   const {
     currentOrders,
     availableOrders,
@@ -162,6 +167,13 @@ export default function OrdersScreen() {
     // Validate code format
     if (!/^[0-9]{4}$/.test(confirmationCode)) {
       setCodeError('Code must be exactly 4 digits');
+      return;
+    }
+
+    if (isDemoMode) {
+      demoCompleteOrder(selectedOrderId);
+      setShowConfirmationModal(false);
+      Alert.alert('Success', 'Order marked as delivered!');
       return;
     }
 
