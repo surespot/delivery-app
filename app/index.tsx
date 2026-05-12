@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 
 import { useAuthStore } from '@/store/auth-store';
+import { useOnboardingStore } from '@/store/onboarding-store';
 import { router } from 'expo-router';
 import Animated, {
     Extrapolate,
@@ -120,12 +121,15 @@ const MemoizedOnboardingCard = React.memo(OnboardingCard);
 
 export default function OnboardingScreen() {
   const { isAuthenticated } = useAuthStore();
+  const { currentStep } = useOnboardingStore();
 
   useEffect(() => {
     if (isAuthenticated) {
       router.replace('/home' as any);
+    } else if (currentStep !== null) {
+      router.replace('/auth/identity-verification' as any);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, currentStep]);
   const scrollX = useSharedValue(INITIAL_OFFSET);
   const flatListRef = useRef<Animated.FlatList<any>>(null);
   const [currentIndex, setCurrentIndex] = useState(0);

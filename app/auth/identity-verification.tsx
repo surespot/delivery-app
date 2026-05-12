@@ -12,6 +12,7 @@ import {
 import { getAuthToken } from '@/src/api/onboarding/client';
 import { useAuthStore } from '@/store/auth-store';
 import { useOnboardingStore } from '@/store/onboarding-store';
+import type { OnboardingStep } from '@/store/onboarding-store';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -107,6 +108,49 @@ export default function IdentityVerificationScreen() {
   const selectedSchedule = onboardingStore.selectedSchedule;
   const setSelectedSchedule = onboardingStore.setSelectedSchedule;
 
+  // Restore screen state when app relaunches mid-signup
+  useEffect(() => {
+    const { currentStep, riderProfile } = onboardingStore;
+    if (!currentStep || !riderProfile) return;
+
+    setRiderData({
+      firstName: riderProfile.firstName,
+      lastName: riderProfile.lastName,
+      dateOfBirth: riderProfile.dateOfBirth,
+      email: riderProfile.email,
+      phoneNumber: riderProfile.phone,
+      address: riderProfile.address,
+      nin: riderProfile.nin,
+    });
+
+    if (currentStep === 'email') {
+      setVerificationStep('email');
+      setResendTimer(30);
+    } else if (currentStep === 'phone') {
+      setVerificationStep('phone');
+      setResendTimer(30);
+    } else if (currentStep === 'password') {
+      setShowPasswordCreation(true);
+    } else if (currentStep === 'schedule') {
+      setShowWorkSchedule(true);
+    }
+    // 'confirm' needs no extra state — riderData set above is sufficient
+  }, []);
+
+  // Keep the persisted step in sync with local UI state
+  useEffect(() => {
+    if (verificationStep === 'email') onboardingStore.setCurrentStep('email');
+    else if (verificationStep === 'phone') onboardingStore.setCurrentStep('phone');
+  }, [verificationStep]);
+
+  useEffect(() => {
+    if (showPasswordCreation) onboardingStore.setCurrentStep('password');
+  }, [showPasswordCreation]);
+
+  useEffect(() => {
+    if (showWorkSchedule) onboardingStore.setCurrentStep('schedule');
+  }, [showWorkSchedule]);
+
   const handleBack = () => {
     router.back();
   };
@@ -133,6 +177,7 @@ export default function IdentityVerificationScreen() {
       if (response.data) {
         onboardingStore.setRegistrationCode(registrationCode);
         onboardingStore.setRiderProfile(response.data);
+        onboardingStore.setCurrentStep('confirm');
         setRiderData({
           firstName: response.data.firstName,
           lastName: response.data.lastName,
@@ -410,7 +455,8 @@ export default function IdentityVerificationScreen() {
           // Fallback: just set authenticated if token retrieval fails
           setAuthenticated(true);
         }
-        
+
+        onboardingStore.reset();
         router.replace('/home');
       }
     } catch (error) {
@@ -622,6 +668,9 @@ export default function IdentityVerificationScreen() {
                   />
                 </Pressable>
               </View>
+              {confirmPassword.length > 0 && password !== confirmPassword && (
+                <Text style={styles.errorText}>Passwords do not match</Text>
+              )}
             </View>
           </View>
         </ScrollView>

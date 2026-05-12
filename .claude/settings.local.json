@@ -6,7 +6,10 @@
       "Bash(npm install *)",
       "WebFetch(domain:docs.expo.dev)",
       "Bash(node -e \"require\\('react-native-safe-area-context'\\)\")",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }
