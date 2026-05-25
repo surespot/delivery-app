@@ -1,5 +1,5 @@
 import { useAuthStore } from '@/store/auth-store';
-import { useGetCurrentRiderProfile, useLogout } from '@/src/api/onboarding';
+import { useDeleteAccount, useGetCurrentRiderProfile, useLogout } from '@/src/api/onboarding';
 import { useDemoStore } from '@/src/demo/store';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -27,6 +27,7 @@ export default function ProfileScreen() {
   const { isOnline, setIsOnline, logout, user, isDemoMode } = useAuthStore();
   const [activeNav, setActiveNav] = useState('profile');
   const logoutMutation = useLogout();
+  const { mutateAsync: deleteAccount, isPending: isDeletingAccount } = useDeleteAccount();
   const { data: profileResponse, isLoading: isLoadingProfile } = useGetCurrentRiderProfile(!isDemoMode);
   const {
     completedOrdersCount,
@@ -80,6 +81,37 @@ export default function ProfileScreen() {
     } else if (key === 'wallet') {
       router.push('/home/wallet' as any);
     }
+  };
+
+  const handleDeleteAccount = () => {
+    if (isDemoMode) {
+      Alert.alert('Demo Mode', 'This functionality is restricted to real accounts.');
+      return;
+    }
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to permanently delete your account? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Account',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteAccount();
+            } catch {
+              Alert.alert(
+                'Delete Account',
+                'There was a problem contacting the server, but your local session has been cleared. Please contact support if your account was not deleted.'
+              );
+            } finally {
+              await logout();
+              router.replace('/auth/login' as any);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleLogout = async () => {
@@ -240,6 +272,18 @@ export default function ProfileScreen() {
             <ActivityIndicator size="small" color="#FF5252" />
           ) : (
             <Text style={styles.logoutButtonText}>Logout</Text>
+          )}
+        </Pressable>
+
+        {/* Delete Account Button */}
+        <Pressable
+          style={styles.deleteAccountButton}
+          onPress={handleDeleteAccount}
+          disabled={isDeletingAccount}>
+          {isDeletingAccount ? (
+            <ActivityIndicator size="small" color="#FF5252" />
+          ) : (
+            <Text style={styles.deleteAccountButtonText}>Delete Account</Text>
           )}
         </Pressable>
       </ScrollView>
@@ -429,6 +473,21 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   logoutButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FF5252',
+  },
+  deleteAccountButton: {
+    backgroundColor: '#FFE5EC',
+    paddingVertical: 16,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#FFCDD6',
+  },
+  deleteAccountButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FF5252',
