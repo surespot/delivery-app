@@ -44,7 +44,7 @@ export default function SupportLegalScreen() {
   const router = useRouter();
   const { logout } = useAuthStore();
   const { mutateAsync: deleteAccount, isPending: isDeletingAccount } = useDeleteAccount();
-  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handlePress = (item: MenuItem) => {
     if (item.target) {
@@ -52,11 +52,11 @@ export default function SupportLegalScreen() {
     }
   };
 
-  const handleDeactivateAccount = () => {
-    setShowDeactivateConfirm(true);
+  const handleDeleteAccount = () => {
+    setShowDeleteConfirm(true);
   };
 
-  const handleConfirmDeactivate = async () => {
+  const handleConfirmDelete = async () => {
     try {
       await deleteAccount();
     } catch {
@@ -72,8 +72,8 @@ export default function SupportLegalScreen() {
     }
   };
 
-  const handleCancelDeactivate = () => {
-    setShowDeactivateConfirm(false);
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
   };
 
   const renderMenuItem = (item: MenuItem) => (
@@ -89,8 +89,8 @@ export default function SupportLegalScreen() {
     </Pressable>
   );
 
-  // Show deactivation confirmation screen
-  if (showDeactivateConfirm) {
+  // Show deletion confirmation screen
+  if (showDeleteConfirm) {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.deactivateContainer}>
@@ -99,13 +99,13 @@ export default function SupportLegalScreen() {
           </View>
 
           <Text style={styles.deactivateTitle}>
-            You are about to request a deactivation of your account.{'\n'}
+            You are about to permanently delete your account.{'\n'}
             Are you sure you want to continue?
           </Text>
 
           <View style={styles.deactivateInfoSection}>
             <Text style={styles.deactivateInfoTitle}>
-              Once your account is deactivated:
+              Once your account is deleted:
             </Text>
             <View style={styles.bulletList}>
               <View style={styles.bulletItem}>
@@ -123,7 +123,7 @@ export default function SupportLegalScreen() {
               <View style={styles.bulletItem}>
                 <Text style={styles.bulletDot}>•</Text>
                 <Text style={styles.bulletText}>
-                  You cannot reactivate the account
+                  This action is permanent and cannot be undone
                 </Text>
               </View>
             </View>
@@ -132,19 +132,19 @@ export default function SupportLegalScreen() {
           <View style={styles.deactivateButtons}>
             <Pressable
               style={[styles.confirmDeactivateButton, isDeletingAccount && { opacity: 0.7 }]}
-              onPress={handleConfirmDeactivate}
+              onPress={handleConfirmDelete}
               disabled={isDeletingAccount}>
               {isDeletingAccount ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <Text style={styles.confirmDeactivateButtonText}>
-                  Yes, Deactivate My Account
+                  Yes, Delete My Account
                 </Text>
               )}
             </Pressable>
             <Pressable
               style={styles.cancelDeactivateButton}
-              onPress={handleCancelDeactivate}>
+              onPress={handleCancelDelete}>
               <Text style={styles.cancelDeactivateButtonText}>Cancel</Text>
             </Pressable>
           </View>
@@ -173,10 +173,10 @@ export default function SupportLegalScreen() {
           {menuItems.map(renderMenuItem)}
         </View>
 
-        {/* Deactivate Account Button */}
-        <Pressable style={styles.deactivateButton} onPress={handleDeactivateAccount}>
+        {/* Delete Account Button */}
+        <Pressable style={styles.deactivateButton} onPress={handleDeleteAccount}>
           <Ionicons name="warning" size={20} color="#FF5252" />
-          <Text style={styles.deactivateButtonText}>Deactivate Account</Text>
+          <Text style={styles.deactivateButtonText}>Delete Account</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
