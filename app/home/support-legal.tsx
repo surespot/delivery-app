@@ -42,7 +42,7 @@ const WarningBadgeIcon = () => (
 
 export default function SupportLegalScreen() {
   const router = useRouter();
-  const { logout } = useAuthStore();
+  const { logout, isDemoMode } = useAuthStore();
   const { mutateAsync: deleteAccount, isPending: isDeletingAccount } = useDeleteAccount();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -57,19 +57,19 @@ export default function SupportLegalScreen() {
   };
 
   const handleConfirmDelete = async () => {
-    try {
-      await deleteAccount();
-    } catch {
-      // Even if the server call fails, clear local state and redirect
-      Alert.alert(
-        'Account Deletion',
-        'There was a problem contacting the server, but your local session has been cleared. Please contact support if your account was not deleted.',
-        [{ text: 'OK' }]
-      );
-    } finally {
-      await logout();
-      router.replace('/' as any);
+    if (!isDemoMode) {
+      try {
+        await deleteAccount();
+      } catch {
+        Alert.alert(
+          'Account Deletion',
+          'There was a problem contacting the server, but your local session has been cleared. Please contact support if your account was not deleted.',
+          [{ text: 'OK' }]
+        );
+      }
     }
+    await logout();
+    router.replace('/' as any);
   };
 
   const handleCancelDelete = () => {

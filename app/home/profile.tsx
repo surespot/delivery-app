@@ -84,10 +84,6 @@ export default function ProfileScreen() {
   };
 
   const handleDeleteAccount = () => {
-    if (isDemoMode) {
-      Alert.alert('Demo Mode', 'This functionality is restricted to real accounts.');
-      return;
-    }
     Alert.alert(
       'Delete Account',
       'Are you sure you want to permanently delete your account? This action cannot be undone.',
@@ -97,17 +93,18 @@ export default function ProfileScreen() {
           text: 'Delete Account',
           style: 'destructive',
           onPress: async () => {
-            try {
-              await deleteAccount();
-            } catch {
-              Alert.alert(
-                'Delete Account',
-                'There was a problem contacting the server, but your local session has been cleared. Please contact support if your account was not deleted.'
-              );
-            } finally {
-              await logout();
-              router.replace('/auth/login' as any);
+            if (!isDemoMode) {
+              try {
+                await deleteAccount();
+              } catch {
+                Alert.alert(
+                  'Delete Account',
+                  'There was a problem contacting the server, but your local session has been cleared. Please contact support if your account was not deleted.'
+                );
+              }
             }
+            await logout();
+            router.replace('/auth/login' as any);
           },
         },
       ]
