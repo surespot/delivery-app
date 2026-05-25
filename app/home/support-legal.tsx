@@ -63,7 +63,7 @@ export default function SupportLegalScreen() {
       } catch {
         Alert.alert(
           'Account Deletion',
-          'There was a problem contacting the server, but your local session has been cleared. Please contact support if your account was not deleted.',
+          'There was a problem contacting the server. Please contact support if your account was not deleted.',
           [{ text: 'OK' }]
         );
       }
