@@ -8,8 +8,6 @@ import {
 } from '@/src/api/chat';
 import { Order } from '@/src/api/orders/types';
 import { calculateDistance, formatPrice } from '@/src/api/orders/utils';
-import { DEMO_RIDER_ID } from '@/src/demo/constants';
-import { useDemoStore } from '@/src/demo/store';
 import { useAuthStore } from '@/store/auth-store';
 import { useOrdersStore } from '@/store/orders-store';
 import { Feather } from '@expo/vector-icons';
@@ -73,7 +71,6 @@ export default function DeliveryDetailsScreen() {
 
   const { currentOrders, availableOrders, completedOrders } = useOrdersStore();
   const { user, isDemoMode } = useAuthStore();
-  const { chatMessages, addChatMessage, scheduleBotReply } = useDemoStore();
 
   // Chat API hooks — disabled in demo mode
   const {
@@ -81,8 +78,8 @@ export default function DeliveryDetailsScreen() {
     isLoading: isLoadingConversation,
   } = useConversationByOrder(orderId, !isDemoMode && !!order && (order.status === 'out-for-delivery' || order.status === 'delivered'));
 
-  const conversationId = isDemoMode ? undefined : conversationData?.data?.id;
-  const conversation = isDemoMode ? undefined : conversationData?.data;
+  const conversationId = conversationData?.data?.id;
+  const conversation = conversationData?.data;
 
   const {
     data: messagesData,
@@ -99,10 +96,7 @@ export default function DeliveryDetailsScreen() {
 
   // Get rider info from conversation to identify own messages
   const riderParticipant = conversation?.participants.find((p) => p.role === 'rider');
-  const riderId = isDemoMode ? DEMO_RIDER_ID : riderParticipant?.userId;
-
-  // Demo: messages from demo store for this order
-  const demoMessages = chatMessages[orderId ?? ''] ?? [];
+  const riderId = riderParticipant?.userId;
 
   const dashAnimations = useRef<Animated.Value[]>(
     Array.from({ length: 15 }, () => new Animated.Value(0))
@@ -111,12 +105,9 @@ export default function DeliveryDetailsScreen() {
   const chatScrollViewRef = useRef<ScrollView>(null);
   const dashAnimationRefs = useRef<Animated.CompositeAnimation[]>([]);
 
-  // Format messages from API or demo store
-  const messages: Message[] = isDemoMode ? [] : (messagesData?.data?.messages || []);
-  // Real API returns newest-first; demo messages are already oldest-first
-  const sortedMessages = isDemoMode
-    ? (demoMessages as unknown as Message[])
-    : [...messages].reverse();
+  // Format messages from API (newest-first from server, reverse for display)
+  const messages: Message[] = messagesData?.data?.messages || [];
+  const sortedMessages = [...messages].reverse();
 
   // Unread messages: customer messages that are not read
   const hasUnreadMessages =
@@ -273,18 +264,6 @@ export default function DeliveryDetailsScreen() {
     const currentMessage = messageDraftRef.current.trim();
     if (!currentMessage) return;
 
-    if (isDemoMode) {
-      addChatMessage(order.id, currentMessage, false);
-      messageDraftRef.current = '';
-      setMessage('');
-      messageInputRef.current?.clear();
-      scheduleBotReply(order.id);
-      setTimeout(() => {
-        chatScrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-      return;
-    }
-
     try {
       await sendMessageMutation.mutateAsync({
         orderId: order.id,
@@ -350,10 +329,8 @@ export default function DeliveryDetailsScreen() {
   }
 
   const isActive = order.status === 'ready' || order.status === 'out-for-delivery';
-  const canChat = isDemoMode
-    ? (order.status === 'ready' || order.status === 'out-for-delivery')
-    : (order.status === 'out-for-delivery' || order.status === 'delivered');
-  const isReadOnly = !isDemoMode && order.status === 'delivered';
+  const canChat = order.status === 'out-for-delivery' || order.status === 'delivered';
+  const isReadOnly = order.status === 'delivered';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -469,7 +446,13 @@ export default function DeliveryDetailsScreen() {
           )}
 
           {/* Chat Section */}
-          {activeTab === 'chat' && (
+          {activeTab === 'chat' && isDemoMode && (
+            <View style={styles.demoChatNotice}>
+              <Feather name="message-circle" size={32} color="#9E9E9E" />
+              <Text style={styles.demoChatNoticeText}>Chat is not available in demo mode</Text>
+            </View>
+          )}
+          {activeTab === 'chat' && !isDemoMode && (
             <KeyboardAvoidingView
               style={styles.chatContainer}
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -618,12 +601,12 @@ export default function DeliveryDetailsScreen() {
                 <View
                   style={[
                     styles.tabIconContainer,
-                    activeTab === 'chat' && styles.tabIconContainerActive,
+                    (activeTab as TabType) === 'chat' && styles.tabIconContainerActive,
                   ]}>
                   <Feather
                     name="message-circle"
                     size={14}
-                    color={activeTab === 'chat' ? '#1F1F1F' : '#7A7A7A'}
+                    color={(activeTab as TabType) === 'chat' ? '#1F1F1F' : '#7A7A7A'}
                   />
                   {hasUnreadMessages && (
                     <View style={styles.chatBadge}>
@@ -1002,5 +985,17 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: '#FF6B6B',
+  },
+  demoChatNotice: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    gap: 12,
+  },
+  demoChatNoticeText: {
+    fontSize: 14,
+    color: '#9E9E9E',
+    fontWeight: '400',
+    textAlign: 'center',
   },
 });

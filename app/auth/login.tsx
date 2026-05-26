@@ -1,7 +1,4 @@
 import { useAuthStore } from '@/store/auth-store';
-import { DEMO_EMAIL, DEMO_PASSWORD, DEMO_USER } from '@/src/demo/constants';
-import { useDemoStore } from '@/src/demo/store';
-import { locationService } from '@/src/services/location-service';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
@@ -22,41 +19,12 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { setAuthenticated, setUser, setAccessToken, setDemoMode, setIsOnline } = useAuthStore();
-  const { activate: activateDemo } = useDemoStore();
+  const { setAuthenticated, setUser, setAccessToken, setDemoMode } = useAuthStore();
   const login = useLogin();
-
-  const handleDemoLogin = async () => {
-    try {
-      await locationService.requestPermissions();
-      const location = await locationService.getCurrentLocation();
-      const lat = location?.latitude ?? 6.5244;
-      const lon = location?.longitude ?? 3.3792;
-      setUser(DEMO_USER);
-      setDemoMode(true);
-      setIsOnline(true);
-      setAuthenticated(true);
-      activateDemo(lat, lon);
-      router.replace('/home' as any);
-    } catch {
-      setUser(DEMO_USER);
-      setDemoMode(true);
-      setIsOnline(true);
-      setAuthenticated(true);
-      activateDemo(6.5244, 3.3792);
-      router.replace('/home' as any);
-    }
-  };
 
   const handleLogin = async () => {
     if (!emailOrPhone || !password) return;
     setIsSubmitting(true);
-
-    if (emailOrPhone.trim().toLowerCase() === DEMO_EMAIL && password === DEMO_PASSWORD) {
-      await handleDemoLogin();
-      setIsSubmitting(false);
-      return;
-    }
 
     try {
       const response = await login.mutateAsync({
@@ -76,7 +44,11 @@ export default function LoginScreen() {
             phone: response.data.user.phone,
             email: response.data.user.email,
             avatar: null,
+            isDemo: response.data.user.isDemo ?? false,
           });
+          if (response.data.user.isDemo) {
+            setDemoMode(true);
+          }
         }
         setAuthenticated(true);
         router.replace('/home' as any);

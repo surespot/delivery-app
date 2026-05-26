@@ -4,7 +4,6 @@ import { useInitialLocationBroadcast } from '@/src/hooks/use-initial-location-br
 import { useRegisterPushToken } from '@/src/hooks/use-register-push-token';
 import { useRiderLocationTracking } from '@/src/hooks/use-rider-location';
 import { useAuthStore } from '@/store/auth-store';
-import { useDemoStore } from '@/src/demo/store';
 import {
   createNotificationsSocket,
   disconnectNotificationsSocket,
@@ -13,7 +12,6 @@ import { createOrdersSocket, disconnectOrdersSocket } from '@/src/api/orders/web
 
 export default function HomeLayout() {
   const { isAuthenticated, isOnline, isDemoMode } = useAuthStore();
-  const { addAvailableOrder } = useDemoStore();
 
   // Broadcast location once on app open (one-shot, foreground only)
   useInitialLocationBroadcast();
@@ -27,7 +25,7 @@ export default function HomeLayout() {
 
   // Manage shared WebSocket connections for the home stack
   useEffect(() => {
-    if (isDemoMode || !isAuthenticated || !isOnline) {
+    if (!isAuthenticated || !isOnline) {
       disconnectOrdersSocket();
       disconnectNotificationsSocket();
       return;
@@ -35,16 +33,7 @@ export default function HomeLayout() {
 
     createOrdersSocket().catch(() => {});
     createNotificationsSocket().catch(() => {});
-  }, [isAuthenticated, isOnline, isDemoMode]);
-
-  // Hourly demo order injection
-  useEffect(() => {
-    if (!isDemoMode) return;
-    const interval = setInterval(() => {
-      addAvailableOrder();
-    }, 60 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [isDemoMode, addAvailableOrder]);
+  }, [isAuthenticated, isOnline]);
 
   return (
     <Stack>

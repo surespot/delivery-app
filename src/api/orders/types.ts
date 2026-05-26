@@ -127,6 +127,9 @@ export type MarkDeliveredResponse = ApiResponse<Order>;
 // Pick Up Order Response
 export type PickUpOrderResponse = ApiResponse<Order>;
 
+// Drop Order Response
+export type DropOrderResponse = ApiResponse<null>;
+
 // WebSocket Connection Response
 export interface WebSocketConnectionResponse {
   success: boolean;

@@ -42,6 +42,7 @@ export interface User {
   phone: string;
   email: string;
   avatar: string | null;
+  isDemo?: boolean;
 }
 
 interface AuthState {
@@ -145,6 +146,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         user,
         expoPushToken: pushToken,
         isAuthenticated: !!(accessToken && user),
+        isDemoMode: user?.isDemo ?? false,
       });
 
       if (accessToken && user) {
@@ -159,8 +161,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               email: profile.email,
               phone: profile.phone,
               avatar: profile.avatar ?? null,
+              isDemo: profile.isDemo ?? user?.isDemo ?? false,
             };
-            set({ user: refreshed });
+            set({ user: refreshed, isDemoMode: refreshed.isDemo ?? false });
             storeUser(refreshed);
           }
         } catch {

@@ -4,12 +4,13 @@ import { useUnreadCount } from '@/src/api/notifications';
 import {
   useAcceptOrder,
   useAssignedOrders,
+  useDropOrder,
   useEligibleOrders,
   useMarkOrderAsDelivered,
   useOrdersWebSocket,
+  usePickUpOrder,
 } from '@/src/api/orders/hooks';
-import { getErrorMessage, transformOrderForUI } from '@/src/api/orders/utils';
-import { useDemoStore } from '@/src/demo/store';
+import { getErrorMessage } from '@/src/api/orders/utils';
 import { useAuthStore } from '@/store/auth-store';
 import { useOrdersStore } from '@/store/orders-store';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -45,13 +46,6 @@ export default function HomeScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showLocationDisclosure, setShowLocationDisclosure] = useState(false);
   const { isOnline, setIsOnline, isDemoMode } = useAuthStore();
-  const {
-    isActive: isDemoActive,
-    availableOrders: demoAvailableOrders,
-    currentOrders: demoCurrentOrders,
-    acceptOrder: demoAcceptOrder,
-    completeOrder: demoCompleteOrder,
-  } = useDemoStore();
   const [activeNav, setActiveNav] = useState('home');
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -66,28 +60,30 @@ export default function HomeScreen() {
     markAsPickedUp,
   } = useOrdersStore();
 
-  // API hooks — disabled in demo mode
+  // API hooks
   const { data: activeOrdersData, isLoading: isLoadingActive, refetch: refetchActive } = useAssignedOrders(
     1,
     20,
     undefined,
-    isOnline && !isDemoMode
+    isOnline
   );
 
   const { data: eligibleOrdersData, isLoading: isLoadingAvailable, refetch: refetchAvailable } = useEligibleOrders(
     1,
     20,
     'ready',
-    isOnline && !isDemoMode
+    isOnline
   );
 
   const acceptOrderMutation = useAcceptOrder();
   const markDeliveredMutation = useMarkOrderAsDelivered();
-  const { data: unreadData } = useUnreadCount(isOnline && !isDemoMode);
+  const pickUpOrderMutation = usePickUpOrder();
+  const dropOrderMutation = useDropOrder();
+  const { data: unreadData } = useUnreadCount(isOnline);
   const unreadCount = unreadData?.data?.unreadCount ?? 0;
 
   // Get current rider profile for name and avatar
-  const { data: riderProfileData } = useGetCurrentRiderProfile(isOnline && !isDemoMode);
+  const { data: riderProfileData } = useGetCurrentRiderProfile(isOnline);
   const riderName = riderProfileData?.data?.firstName || 'Rider';
   const { user } = useAuthStore();
   const avatarUrl = user?.avatar || riderProfileData?.data?.avatar || null;
@@ -111,34 +107,21 @@ export default function HomeScreen() {
     onError: () => {},
   });
 
-  // Update store when API data changes (real mode)
+  // Update store when API data changes
   useEffect(() => {
-    if (isDemoMode) return;
     if (activeOrdersData?.data?.orders) {
       const activeOrders = activeOrdersData.data.orders.filter(
         order => order.status === 'ready' || order.status === 'out-for-delivery'
       );
       setCurrentOrders(activeOrders);
     }
-  }, [activeOrdersData, setCurrentOrders, isDemoMode]);
+  }, [activeOrdersData, setCurrentOrders]);
 
   useEffect(() => {
-    if (isDemoMode) return;
     if (eligibleOrdersData?.data?.orders) {
       setAvailableOrders(eligibleOrdersData.data.orders);
     }
-  }, [eligibleOrdersData, setAvailableOrders, isDemoMode]);
-
-  // Sync demo store → orders store
-  useEffect(() => {
-    if (!isDemoMode || !isDemoActive) return;
-    setAvailableOrders(demoAvailableOrders);
-  }, [isDemoMode, isDemoActive, demoAvailableOrders, setAvailableOrders]);
-
-  useEffect(() => {
-    if (!isDemoMode || !isDemoActive) return;
-    setCurrentOrders(demoCurrentOrders);
-  }, [isDemoMode, isDemoActive, demoCurrentOrders, setCurrentOrders]);
+  }, [eligibleOrdersData, setAvailableOrders]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -151,12 +134,6 @@ export default function HomeScreen() {
   const handleAcceptOrder = async (orderId: string) => {
     if (currentOrders.length >= 3) {
       Alert.alert('Order Limit', 'You cannot accept more than 3 orders at once. Please deliver some orders first.');
-      return;
-    }
-
-    if (isDemoMode) {
-      demoAcceptOrder(orderId);
-      Alert.alert('Success', 'Order accepted successfully!');
       return;
     }
 
@@ -178,6 +155,27 @@ export default function HomeScreen() {
     }
   };
 
+  const handleDropOrder = (orderId: string) => {
+    Alert.alert(
+      'Drop Order',
+      'Are you sure you want to drop this order? It will be returned to the available pool.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Drop Order',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dropOrderMutation.mutateAsync(orderId);
+            } catch {
+              Alert.alert('Error', 'Failed to drop order. Please try again.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const handleMarkAsDelivered = (orderId: string) => {
     setSelectedOrderId(orderId);
     setConfirmationCode('');
@@ -190,13 +188,6 @@ export default function HomeScreen() {
 
     if (!/^[0-9]{4}$/.test(confirmationCode)) {
       setCodeError('Code must be exactly 4 digits');
-      return;
-    }
-
-    if (isDemoMode) {
-      demoCompleteOrder(selectedOrderId);
-      setShowConfirmationModal(false);
-      Alert.alert('Success', 'Order marked as delivered!');
       return;
     }
 
@@ -265,12 +256,6 @@ export default function HomeScreen() {
   };
 
   const handleRefresh = async () => {
-    if (isDemoMode) {
-      setIsRefreshing(true);
-      await new Promise((r) => setTimeout(r, 600));
-      setIsRefreshing(false);
-      return;
-    }
     setIsRefreshing(true);
     await Promise.all([refetchActive(), refetchAvailable()]);
     setIsRefreshing(false);
@@ -453,16 +438,47 @@ export default function HomeScreen() {
                     </View>
                   </View>
                   <View style={styles.orderActions}>
-                    <View style={styles.timeButton}>
-                      <Text style={styles.timeButtonText}>{order.time}</Text>
-                    </View>
-                    {order.fullOrder?.status === 'ready' && (
+                    {order.fullOrder?.status !== 'ready' && (
+                      <View style={styles.timeButton}>
+                        <Text style={styles.timeButtonText}>{order.time}</Text>
+                      </View>
+                    )}
+                    {order.fullOrder?.status === 'ready' && !isDemoMode && (
                       <View style={styles.pickupStatusPill}>
                         <Feather name="clock" size={16} color="#4F4F4F" />
                         <Text style={styles.pickupStatusText}>
                           Waiting for pickup confirmation
                         </Text>
                       </View>
+                    )}
+                    {order.fullOrder?.status === 'ready' && isDemoMode && (
+                      <Pressable
+                        style={[
+                          styles.deliveredButton,
+                          pickUpOrderMutation.isPending && styles.deliveredButtonDisabled,
+                        ]}
+                        onPress={() => pickUpOrderMutation.mutate(order.id)}
+                        disabled={pickUpOrderMutation.isPending}>
+                        {pickUpOrderMutation.isPending ? (
+                          <ActivityIndicator size="small" color="#1F1F1F" />
+                        ) : (
+                          <>
+                            <Text style={styles.deliveredButtonText}>Picked Up</Text>
+                            <Ionicons name="checkmark" size={18} color="#1F1F1F" />
+                          </>
+                        )}
+                      </Pressable>
+                    )}
+                    {order.fullOrder?.status === 'ready' && (
+                      <Pressable
+                        style={[
+                          styles.dropButton,
+                          dropOrderMutation.isPending && styles.deliveredButtonDisabled,
+                        ]}
+                        onPress={() => handleDropOrder(order.id)}
+                        disabled={dropOrderMutation.isPending}>
+                        <Text style={styles.dropButtonText}>Drop Order</Text>
+                      </Pressable>
                     )}
                     {order.fullOrder?.status === 'out-for-delivery' && (
                       <Pressable
@@ -1077,6 +1093,24 @@ const styles = StyleSheet.create({
   pickupStatusText: {
     fontSize: 12,
     color: '#4F4F4F',
+    fontWeight: '500',
+  },
+  dropButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#FFF0F0',
+    borderWidth: 1,
+    borderColor: '#FFCCCC',
+    marginTop: 8,
+  },
+  dropButtonText: {
+    fontSize: 12,
+    color: '#CC3333',
     fontWeight: '500',
   },
   sectionHeaderWithTabs: {

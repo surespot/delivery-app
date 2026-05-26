@@ -87,4 +87,4 @@ export interface DeleteAllData {
 
 export type DeleteAllResponse = ApiResponse<DeleteAllData>;
 
-export interface AddPushTokenResponse = ApiResponse<Record<string, never>>;
+export type AddPushTokenResponse = ApiResponse<Record<string, never>>;

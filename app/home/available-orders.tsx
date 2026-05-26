@@ -1,8 +1,6 @@
 import { useOrdersStore } from '@/store/orders-store';
 import { useEligibleOrders, useAcceptOrder, useOrdersWebSocket } from '@/src/api/orders/hooks';
 import { getErrorMessage } from '@/src/api/orders/utils';
-import { useDemoStore } from '@/src/demo/store';
-import { useAuthStore } from '@/store/auth-store';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -27,8 +25,6 @@ const MAX_PRICE = 50000;
 
 export default function AvailableOrdersScreen() {
   const router = useRouter();
-  const { isDemoMode } = useAuthStore();
-  const { acceptOrder: demoAcceptOrder } = useDemoStore();
   const {
     availableOrders,
     addCurrentOrder,
@@ -38,26 +34,25 @@ export default function AvailableOrdersScreen() {
     clearError
   } = useOrdersStore();
 
-  // API hooks — disabled in demo mode
-  const { data: eligibleOrdersData, isLoading, error, refetch } = useEligibleOrders(1, 20, 'ready', !isDemoMode);
+  // API hooks
+  const { data: eligibleOrdersData, isLoading, error, refetch } = useEligibleOrders(1, 20, 'ready', true);
   const acceptOrderMutation = useAcceptOrder();
 
-  // WebSocket connection for real-time updates — disabled in demo mode
-  useOrdersWebSocket(!isDemoMode, {
+  // WebSocket connection for real-time updates
+  useOrdersWebSocket(true, {
     onOrderReady: () => {
       refetch();
     },
     onError: () => {},
   });
 
-  // Update store when API data changes (real mode only)
+  // Update store when API data changes
   useEffect(() => {
-    if (isDemoMode) return;
     if (eligibleOrdersData?.data?.orders) {
       setAvailableOrders(eligibleOrdersData.data.orders);
       clearError();
     }
-  }, [isDemoMode, eligibleOrdersData, setAvailableOrders, clearError]);
+  }, [eligibleOrdersData, setAvailableOrders, clearError]);
 
   // Handle API errors
   useEffect(() => {
@@ -178,12 +173,6 @@ export default function AvailableOrdersScreen() {
   const handleAcceptOrder = async (orderId: string) => {
     if (currentOrders.length >= 3) {
       Alert.alert('Order Limit', 'You cannot accept more than 3 orders at once. Please deliver some orders first.');
-      return;
-    }
-
-    if (isDemoMode) {
-      demoAcceptOrder(orderId);
-      Alert.alert('Success', 'Order accepted successfully!');
       return;
     }
 

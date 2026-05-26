@@ -71,7 +71,13 @@ export function formatOrderTime(timestamp: string): string {
 export function transformOrderForUI(order: Order) {
   // Calculate distance from pickup to delivery (if we had rider location)
   // For now, we'll use a placeholder or calculate if coordinates are available
-  const distance = order.pickupLocation && order.deliveryAddress?.coordinates
+  const hasCoords =
+    order.pickupLocation?.latitude != null &&
+    order.pickupLocation?.longitude != null &&
+    order.deliveryAddress?.coordinates?.latitude != null &&
+    order.deliveryAddress?.coordinates?.longitude != null;
+
+  const distance = hasCoords
     ? `${calculateDistance(
         order.pickupLocation.latitude,
         order.pickupLocation.longitude,
@@ -83,7 +89,7 @@ export function transformOrderForUI(order: Order) {
   return {
     id: order.id,
     orderNumber: order.orderNumber,
-    pickupAddress: order.pickupLocation.address,
+    pickupAddress: order.pickupLocation?.address ?? '',
     deliveryAddress: order.deliveryAddress.address,
     price: formatPrice(order.deliveryFee), // Show delivery fee instead of total
     time: formatOrderTime(order.createdAt),

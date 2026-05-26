@@ -272,7 +272,7 @@ export async function apiRequest<T>(
  */
 export async function apiRequestMultipart<T>(
   endpoint: string,
-  options: { formData: FormData; requiresAuth?: boolean } = {}
+  options: { formData?: FormData; requiresAuth?: boolean } = {}
 ): Promise<ApiResponse<T>> {
   const { formData, requiresAuth = false } = options;
 

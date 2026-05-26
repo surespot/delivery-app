@@ -106,6 +106,20 @@ export const useMarkOrderAsDelivered = () => {
 };
 
 /**
+ * Drop an accepted order before pickup (puts it back in the eligible pool)
+ */
+export const useDropOrder = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (orderId: string) => ordersApi.dropOrder(orderId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders', 'assigned'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['orders', 'eligible'], exact: false });
+    },
+  });
+};
+
+/**
  * Pick up an order (change status from ready -> out-for-delivery)
  */
 export const usePickUpOrder = () => {

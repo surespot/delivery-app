@@ -152,7 +152,7 @@ export default function IdentityVerificationScreen() {
   }, [showWorkSchedule]);
 
   const handleBack = () => {
-    router.back();
+    router.replace('/');
   };
 
   const handleNext = async () => {

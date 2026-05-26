@@ -3,6 +3,7 @@ import type {
     AcceptOrderRequest,
     AcceptOrderResponse,
     AssignedOrdersResponse,
+    DropOrderResponse,
     EligibleOrdersResponse,
     MarkDeliveredRequest,
     MarkDeliveredResponse,
@@ -92,7 +93,7 @@ export const ordersApi = {
         body: payload,
         requiresAuth: true,
       }
-    )) as Promise<MarkDeliveredResponse>;
+    )) as unknown as MarkDeliveredResponse;
   },
 
   /**
@@ -107,5 +108,19 @@ export const ordersApi = {
         requiresAuth: true,
       }
     ) as Promise<PickUpOrderResponse>;
+  },
+
+  /**
+   * Drop an accepted order before pickup
+   * POST /orders/rider/:orderId/drop
+   */
+  dropOrder: (orderId: string): Promise<DropOrderResponse> => {
+    return apiRequest<DropOrderResponse['data']>(
+      `/orders/rider/${orderId}/drop`,
+      {
+        method: 'POST',
+        requiresAuth: true,
+      }
+    ) as Promise<DropOrderResponse>;
   },
 };

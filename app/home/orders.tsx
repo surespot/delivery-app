@@ -1,12 +1,13 @@
 import { useOrdersStore } from '@/store/orders-store';
 import { useAuthStore } from '@/store/auth-store';
-import { useDemoStore } from '@/src/demo/store';
 import {
   useAssignedOrders,
   useEligibleOrders,
   useAcceptOrder,
+  useDropOrder,
   useMarkOrderAsDelivered,
   useOrdersWebSocket,
+  usePickUpOrder,
 } from '@/src/api/orders/hooks';
 import { getErrorMessage } from '@/src/api/orders/utils';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -44,9 +45,6 @@ export default function OrdersScreen() {
   const [codeError, setCodeError] = useState('');
   const codeInputRef = useRef<TextInput>(null);
   
-  const { isDemoMode } = useAuthStore();
-  const { completeOrder: demoCompleteOrder } = useDemoStore();
-
   const {
     currentOrders,
     availableOrders,
@@ -79,8 +77,11 @@ export default function OrdersScreen() {
     activeTab === 'completed'
   );
 
+  const { isDemoMode } = useAuthStore();
   const acceptOrderMutation = useAcceptOrder();
   const markDeliveredMutation = useMarkOrderAsDelivered();
+  const pickUpOrderMutation = usePickUpOrder();
+  const dropOrderMutation = useDropOrder();
 
   // WebSocket connection for real-time updates
   useOrdersWebSocket(true, {
@@ -170,13 +171,6 @@ export default function OrdersScreen() {
       return;
     }
 
-    if (isDemoMode) {
-      demoCompleteOrder(selectedOrderId);
-      setShowConfirmationModal(false);
-      Alert.alert('Success', 'Order marked as delivered!');
-      return;
-    }
-
     try {
       await markDeliveredMutation.mutateAsync({
         orderId: selectedOrderId,
@@ -197,6 +191,27 @@ export default function OrdersScreen() {
         setCodeError(getErrorMessage(errorCode) || errorMessage);
       }
     }
+  };
+
+  const handleDropOrder = (orderId: string) => {
+    Alert.alert(
+      'Drop Order',
+      'Are you sure you want to drop this order? It will be returned to the available pool.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Drop Order',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dropOrderMutation.mutateAsync(orderId);
+            } catch {
+              Alert.alert('Error', 'Failed to drop order. Please try again.');
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handleCodeChange = (value: string) => {
@@ -257,16 +272,47 @@ export default function OrdersScreen() {
               </View>
             </View>
             <View style={styles.orderActions}>
-              <View style={styles.timeButton}>
-                <Text style={styles.timeButtonText}>{order.time}</Text>
-              </View>
-              {order.fullOrder?.status === 'ready' && (
+              {order.fullOrder?.status !== 'ready' && (
+                <View style={styles.timeButton}>
+                  <Text style={styles.timeButtonText}>{order.time}</Text>
+                </View>
+              )}
+              {order.fullOrder?.status === 'ready' && !isDemoMode && (
                 <View style={styles.pickupStatusPill}>
                   <Feather name="clock" size={16} color="#4F4F4F" />
                   <Text style={styles.pickupStatusText}>
                     Waiting for pickup confirmation
                   </Text>
                 </View>
+              )}
+              {order.fullOrder?.status === 'ready' && isDemoMode && (
+                <Pressable
+                  style={[
+                    styles.deliveredButton,
+                    pickUpOrderMutation.isPending && styles.deliveredButtonDisabled,
+                  ]}
+                  onPress={() => pickUpOrderMutation.mutate(order.id)}
+                  disabled={pickUpOrderMutation.isPending}>
+                  {pickUpOrderMutation.isPending ? (
+                    <ActivityIndicator size="small" color="#1F1F1F" />
+                  ) : (
+                    <>
+                      <Text style={styles.deliveredButtonText}>Picked Up</Text>
+                      <Ionicons name="checkmark" size={18} color="#1F1F1F" />
+                    </>
+                  )}
+                </Pressable>
+              )}
+              {order.fullOrder?.status === 'ready' && (
+                <Pressable
+                  style={[
+                    styles.dropButton,
+                    dropOrderMutation.isPending && styles.deliveredButtonDisabled,
+                  ]}
+                  onPress={() => handleDropOrder(order.id)}
+                  disabled={dropOrderMutation.isPending}>
+                  <Text style={styles.dropButtonText}>Drop Order</Text>
+                </Pressable>
               )}
               {order.fullOrder?.status === 'out-for-delivery' && (
                 <Pressable
@@ -792,6 +838,24 @@ const styles = StyleSheet.create({
   pickupStatusText: {
     fontSize: 12,
     color: '#4F4F4F',
+    fontWeight: '500',
+  },
+  dropButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#FFF0F0',
+    borderWidth: 1,
+    borderColor: '#FFCCCC',
+    marginTop: 8,
+  },
+  dropButtonText: {
+    fontSize: 12,
+    color: '#CC3333',
     fontWeight: '500',
   },
   bottomNav: {

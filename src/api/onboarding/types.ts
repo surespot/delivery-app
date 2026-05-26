@@ -44,6 +44,7 @@ export interface RiderProfile {
   updatedAt?: string;
   stats?: RiderStats;
   avatar?: string | null;
+  isDemo?: boolean;
 }
 
 export interface MaskedRiderProfile {
@@ -125,6 +126,7 @@ export interface User {
   lastName: string;
   phone: string;
   email: string;
+  isDemo?: boolean;
 }
 
 export interface Tokens {

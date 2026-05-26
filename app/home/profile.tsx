@@ -1,6 +1,5 @@
 import { useAuthStore } from '@/store/auth-store';
 import { useDeleteAccount, useGetCurrentRiderProfile, useLogout } from '@/src/api/onboarding';
-import { useDemoStore } from '@/src/demo/store';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -28,30 +27,10 @@ export default function ProfileScreen() {
   const [activeNav, setActiveNav] = useState('profile');
   const logoutMutation = useLogout();
   const { mutateAsync: deleteAccount, isPending: isDeletingAccount } = useDeleteAccount();
-  const { data: profileResponse, isLoading: isLoadingProfile } = useGetCurrentRiderProfile(!isDemoMode);
-  const {
-    completedOrdersCount,
-    totalEarningsKobo,
-    totalDistanceKm,
-    sessionStartMs,
-  } = useDemoStore();
+  const { data: profileResponse, isLoading: isLoadingProfile } = useGetCurrentRiderProfile();
 
   const profile = profileResponse?.data;
   const stats = profile?.stats?.today;
-
-  const demoStats = isDemoMode ? (() => {
-    const elapsedMs = sessionStartMs ? Date.now() - sessionStartMs : 0;
-    const totalMins = Math.floor(elapsedMs / 60000);
-    const hours = Math.floor(totalMins / 60);
-    const mins = totalMins % 60;
-    const naira = totalEarningsKobo / 100;
-    return {
-      completedOrders: completedOrdersCount,
-      distanceCoveredFormatted: `${totalDistanceKm} km`,
-      timeOnlineFormatted: `${hours}h ${mins}m`,
-      earningsFormatted: `₦${naira.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    };
-  })() : null;
 
   const initials = `${(profile?.firstName?.[0] ?? user?.firstName?.[0] ?? 'S').toUpperCase()}${(
     profile?.lastName?.[0] ?? user?.lastName?.[0] ?? 'S'
@@ -93,15 +72,13 @@ export default function ProfileScreen() {
           text: 'Delete Account',
           style: 'destructive',
           onPress: async () => {
-            if (!isDemoMode) {
-              try {
-                await deleteAccount();
-              } catch {
-                Alert.alert(
-                  'Delete Account',
-                  'There was a problem contacting the server. Please contact support if your account was not deleted.'
-                );
-              }
+            try {
+              await deleteAccount();
+            } catch {
+              Alert.alert(
+                'Delete Account',
+                'There was a problem contacting the server. Please contact support if your account was not deleted.'
+              );
             }
             await logout();
             router.replace('/auth/login' as any);
@@ -211,25 +188,25 @@ export default function ProfileScreen() {
               <View style={styles.statCard}>
                 <Text style={styles.statLabel}>Completed Orders</Text>
                 <Text style={styles.statValue}>
-                  {(demoStats ?? stats)?.completedOrders ?? 0}
+                  {stats?.completedOrders ?? 0}
                 </Text>
               </View>
               <View style={styles.statCard}>
                 <Text style={styles.statLabel}>Distance Covered</Text>
                 <Text style={styles.statValue}>
-                  {(demoStats ?? stats)?.distanceCoveredFormatted ?? '0 km'}
+                  {stats?.distanceCoveredFormatted ?? '0 km'}
                 </Text>
               </View>
               <View style={styles.statCard}>
                 <Text style={styles.statLabel}>Time Online</Text>
                 <Text style={styles.statValue}>
-                  {(demoStats ?? stats)?.timeOnlineFormatted ?? '0h 0m'}
+                  {stats?.timeOnlineFormatted ?? '0h 0m'}
                 </Text>
               </View>
               <View style={styles.statCard}>
                 <Text style={styles.statLabel}>Earnings</Text>
                 <Text style={styles.statValue}>
-                  {(demoStats ?? stats)?.earningsFormatted ?? '₦0.00'}
+                  {stats?.earningsFormatted ?? '₦0.00'}
                 </Text>
               </View>
             </View>

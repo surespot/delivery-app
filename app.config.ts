@@ -69,6 +69,7 @@ const config: ExpoConfig = {
       },
     ],
     'expo-updates',
+    'expo-web-browser',
     [
       'expo-notifications',
       {

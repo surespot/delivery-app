@@ -25,5 +25,5 @@ export type {
   NotificationType,
   NotificationsResponse,
   UnreadCountResponse,
-  NotificationsSocketCallbacks,
 } from './types';
+export type { NotificationsSocketCallbacks } from './websocket';
