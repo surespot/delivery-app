@@ -864,15 +864,24 @@ export default function IdentityVerificationScreen() {
           </View>
         </ScrollView>
 
-        <View style={styles.bottomButtonContainer}>
+        <View style={styles.bottomButtons}>
           <Pressable
-            style={styles.proceedButton}
+            style={styles.backButton}
+            onPress={() => {
+              setRiderData(null);
+              onboardingStore.setRiderProfile(null);
+              onboardingStore.setCurrentStep(null);
+            }}>
+            <Ionicons name="chevron-back" size={24} color="#1F1F1F" />
+          </Pressable>
+          <Pressable
+            style={styles.confirmButton}
             onPress={handleProceedToVerification}
             disabled={sendEmailOtp.isPending}>
             {sendEmailOtp.isPending ? (
               <ActivityIndicator size="small" color="#1F1F1F" />
             ) : (
-              <Text style={styles.proceedButtonText}>Proceed to Verification</Text>
+              <Text style={styles.proceedButtonText}>Confirm</Text>
             )}
           </Pressable>
         </View>
@@ -1134,6 +1143,14 @@ const styles = StyleSheet.create({
   legalLink: {
     color: '#FFD700',
     fontWeight: '500',
+  },
+  confirmButton: {
+    backgroundColor: '#FFD700',
+    height: 54,
+    borderRadius: 999,
+    paddingHorizontal: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   bottomButtonContainer: {
     paddingHorizontal: 24,
