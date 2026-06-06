@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { useInitialLocationBroadcast } from '@/src/hooks/use-initial-location-broadcast';
+import { useInAppUpdates } from '@/src/hooks/use-in-app-updates';
 import { useRegisterPushToken } from '@/src/hooks/use-register-push-token';
 import { useRiderLocationTracking } from '@/src/hooks/use-rider-location';
 import { useAuthStore } from '@/store/auth-store';
@@ -12,6 +13,9 @@ import { createOrdersSocket, disconnectOrdersSocket } from '@/src/api/orders/web
 
 export default function HomeLayout() {
   const { isAuthenticated, isOnline, isDemoMode } = useAuthStore();
+
+  // Check for native app updates (Play Store / App Store)
+  useInAppUpdates();
 
   // Broadcast location once on app open (one-shot, foreground only)
   useInitialLocationBroadcast();

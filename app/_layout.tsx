@@ -25,7 +25,7 @@ Notifications.setNotificationHandler({
 });
 
 export const unstable_settings = {
-  anchor: '(tabs)',
+  anchor: 'index',
 };
 
 const queryClient = new QueryClient({
