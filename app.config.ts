@@ -1,6 +1,8 @@
-import type { ExpoConfig } from 'expo/config';
+import 'dotenv/config';
+import type { ConfigContext, ExpoConfig } from 'expo/config';
 
-const config: ExpoConfig = {
+export default ({ config }: ConfigContext): ExpoConfig => ({
+  ...config,
   name: 'Surespot Riders',
   slug: 'surespot-riders-app',
   version: '1.0.0',
@@ -95,10 +97,8 @@ const config: ExpoConfig = {
   extra: {
     router: {},
     eas: {
-      projectId: '95760113-fb70-4d67-b904-76df4faad074',
+      projectId: process.env.EXPO_PUBLIC_PROJECT_ID ?? '',
     },
   },
   owner: 'surespot-eatery',
-};
-
-export default config;
+});
