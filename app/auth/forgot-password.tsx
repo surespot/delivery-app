@@ -271,12 +271,13 @@ export default function ForgotPasswordScreen() {
   };
 
   const identifierValue = identifier || defaultIdentifier;
-  const isEmailAddress = identifierValue ? isEmail(identifierValue) : usingEmail;
+  const identifierKnown = identifierValue.length > 0;
+  const isEmailAddress = identifierKnown ? isEmail(identifierValue) : usingEmail;
   const isValidIdentifier =
     identifierValue &&
     (isEmailAddress
       ? validateEmail(identifierValue)
-      : identifierValue.length >= 10);
+      : identifierValue.replace(/\D/g, '').length >= 10);
   const isOtpReady = otp.length === CODE_LENGTH;
   const isPasswordValid =
     newPassword.length >= 8 && confirmPassword === newPassword;
@@ -320,19 +321,31 @@ export default function ForgotPasswordScreen() {
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
-                  {isEmailAddress ? 'Email' : 'Phone Number'}
+                  {!identifierKnown
+                    ? 'Email or Phone Number'
+                    : isEmailAddress
+                    ? 'Email'
+                    : 'Phone Number'}
                 </Text>
                 <TextInput
                   style={styles.input}
                   value={identifier || defaultIdentifier}
                   onChangeText={setIdentifier}
                   placeholder={
-                    isEmailAddress
+                    !identifierKnown
+                      ? 'Enter your email or phone number'
+                      : isEmailAddress
                       ? 'Enter your email'
                       : 'Enter your phone number'
                   }
                   placeholderTextColor="#9E9E9E"
-                  keyboardType={isEmailAddress ? 'email-address' : 'phone-pad'}
+                  keyboardType={
+                    !identifierKnown
+                      ? 'default'
+                      : isEmailAddress
+                      ? 'email-address'
+                      : 'phone-pad'
+                  }
                   autoCapitalize="none"
                   autoFocus
                 />
