@@ -94,10 +94,6 @@ export default function DeliveryDetailsScreen() {
   const customerParticipant = conversation?.participants.find((p) => p.role === 'user');
   const customer = customerParticipant?.user;
 
-  // Get rider info from conversation to identify own messages
-  const riderParticipant = conversation?.participants.find((p) => p.role === 'rider');
-  const riderId = riderParticipant?.userId;
-
   const dashAnimations = useRef<Animated.Value[]>(
     Array.from({ length: 15 }, () => new Animated.Value(0))
   ).current;
@@ -113,7 +109,7 @@ export default function DeliveryDetailsScreen() {
   const hasUnreadMessages =
     !!conversationId &&
     messages.some(
-      (msg) => !msg.isRead && msg.sender?._id !== riderId
+      (msg) => !msg.isRead && msg.senderId !== user?.id
     );
 
   // Find order from store
@@ -498,7 +494,7 @@ export default function DeliveryDetailsScreen() {
                   contentContainerStyle={styles.messagesContent}
                   showsVerticalScrollIndicator={false}>
                   {sortedMessages.map((msg) => {
-                    const isRider = msg.senderId === riderId;
+                    const isRider = msg.senderId === user?.id;
                     return (
                       <View key={msg.id} style={styles.messageWrapper}>
                         <View

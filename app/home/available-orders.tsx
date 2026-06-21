@@ -244,16 +244,10 @@ export default function AvailableOrdersScreen() {
                     <View style={styles.routeIcon}>
                       <Ionicons name="star" size={16} color="#FFFFFF" />
                     </View>
-                    <Text style={styles.routeAddress}>{order.deliveryAddress}</Text>
+                    <Text style={[styles.routeAddress, styles.hiddenAddress]}>Address revealed on accept</Text>
                   </View>
                 </View>
                 <View style={styles.orderInfo}>
-                  <View style={styles.infoItem}>
-                    <View style={styles.currencyIconContainer}>
-                      <Feather name="dollar-sign" size={14} color="#7A7A7A" />
-                    </View>
-                    <Text style={styles.price}>{order.price}</Text>
-                  </View>
                   <View style={styles.infoItem}>
                     <Feather name="clock" size={14} color="#7A7A7A" />
                     <Text style={styles.infoText}>{order.time}</Text>
@@ -508,6 +502,11 @@ const styles = StyleSheet.create({
     color: '#1F1F1F',
     flex: 1,
   },
+  hiddenAddress: {
+    color: '#9E9E9E',
+    fontStyle: 'italic',
+    fontWeight: '400',
+  },
   orderInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -518,19 +517,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-  },
-  currencyIconContainer: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#F2F2F2',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  price: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#7A7A7A',
   },
   infoText: {
     fontSize: 14,
