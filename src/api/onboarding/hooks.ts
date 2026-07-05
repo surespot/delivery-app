@@ -3,7 +3,6 @@ import { clearRegionId } from '../../tasks/location-task';
 import {
   clearTokens,
   getRefreshToken,
-  getSavedPushToken,
   onboardingApi,
   saveAuthToken,
   saveRefreshToken,
@@ -15,6 +14,7 @@ import type {
   InitiateRegistrationRequest,
   LoginRequest,
   UpdateScheduleRequest,
+  UpdateVehicleTypeRequest,
   VerifyOtpRequest,
 } from './types';
 
@@ -217,6 +217,17 @@ export const useUpdateSchedule = () => {
   });
 };
 
+export const useUpdateVehicleType = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: UpdateVehicleTypeRequest) =>
+      onboardingApi.updateVehicleType(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: onboardingKeys.currentRider() });
+    },
+  });
+};
+
 /**
  * Refresh access token
  */
@@ -242,21 +253,19 @@ export const useRefreshToken = () => {
 };
 
 /**
- * Logout — removes the Expo push token from the backend first so the server
- * stops sending notifications to this device, then invalidates the session.
+ * Logout — invalidates the session. Deliberately does not remove the push
+ * token from the backend: logging out on this device shouldn't unregister
+ * it for push (see auth.service.ts login()).
  */
 export const useLogout = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      const [refreshToken, expoPushToken] = await Promise.all([
-        getRefreshToken(),
-        getSavedPushToken(),
-      ]);
+      const refreshToken = await getRefreshToken();
       if (!refreshToken) {
         throw new Error('No refresh token found');
       }
-      return onboardingApi.logout({ refreshToken, expoPushToken });
+      return onboardingApi.logout({ refreshToken });
     },
     onSuccess: async () => {
       // Clear all tokens and the cached regionId.

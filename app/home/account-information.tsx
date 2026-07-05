@@ -1,4 +1,4 @@
-import { useUploadAvatar } from '@/src/api/onboarding';
+import { useGetCurrentRiderProfile, useUpdateVehicleType, useUploadAvatar } from '@/src/api/onboarding';
 import { useAuthStore } from '@/store/auth-store';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -79,6 +79,10 @@ export default function AccountInformationScreen() {
   const router = useRouter();
   const { user, updateUser, isAuthenticated } = useAuthStore();
   const uploadAvatar = useUploadAvatar();
+  const { data: profileResponse } = useGetCurrentRiderProfile();
+  const profile = profileResponse?.data;
+  const updateVehicleType = useUpdateVehicleType();
+  const [vehicleType, setVehicleType] = useState<'MOTORCYCLE' | 'BICYCLE'>('BICYCLE');
 
   // Redirect if user is not available
   useEffect(() => {
@@ -140,6 +144,12 @@ export default function AccountInformationScreen() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (profile?.vehicleType) {
+      setVehicleType(profile.vehicleType);
+    }
+  }, [profile?.vehicleType]);
+
   const hasInfoChanges =
     user && (firstName !== user.firstName || lastName !== user.lastName);
   const isValidEmail = newEmail.trim() ? validateEmail(newEmail) : false;
@@ -173,6 +183,17 @@ export default function AccountInformationScreen() {
       Alert.alert('Error', 'Failed to update information. Please try again.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleVehicleTypeChange = async (type: 'MOTORCYCLE' | 'BICYCLE') => {
+    const previous = vehicleType;
+    setVehicleType(type);
+    try {
+      await updateVehicleType.mutateAsync({ vehicleType: type });
+    } catch {
+      setVehicleType(previous);
+      Alert.alert('Error', 'Failed to update vehicle type. Please try again.');
     }
   };
 
@@ -420,6 +441,12 @@ export default function AccountInformationScreen() {
                 <Text style={styles.detailLabel}>Email</Text>
                 <Text style={styles.detailValue}>{user?.email || 'Not set'}</Text>
               </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Vehicle type</Text>
+                <Text style={styles.detailValue}>
+                  {vehicleType === 'MOTORCYCLE' ? 'Motorcycle' : 'Bicycle'}
+                </Text>
+              </View>
             </View>
 
             {/* Edit Link */}
@@ -476,6 +503,29 @@ export default function AccountInformationScreen() {
                 {isSaving ? 'Saving...' : 'Save Changes'}
               </Text>
             </Pressable>
+
+            {/* Vehicle Type */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Vehicle type</Text>
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+                {(['BICYCLE', 'MOTORCYCLE'] as const).map((type) => (
+                  <Pressable
+                    key={type}
+                    onPress={() => handleVehicleTypeChange(type)}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 12,
+                      borderRadius: 12,
+                      alignItems: 'center',
+                      backgroundColor: vehicleType === type ? '#FFD700' : '#E0E0E0',
+                    }}>
+                    <Text style={{ fontWeight: '600', color: '#1f1f1f' }}>
+                      {type === 'BICYCLE' ? 'Bicycle' : 'Motorcycle'}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
 
             {/* Action Buttons */}
             <View style={styles.actionButtonsContainer}>

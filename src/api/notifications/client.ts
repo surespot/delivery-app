@@ -107,13 +107,16 @@ export const notificationsApi = {
   },
 
   /**
-   * Add Expo push token
+   * Add push token (raw FCM/APNS device token)
    * POST /notifications/push-token
    */
-  addPushToken: (token: string): Promise<AddPushTokenResponse> => {
+  addPushToken: (
+    token: string,
+    platform: 'ios' | 'android'
+  ): Promise<AddPushTokenResponse> => {
     return apiRequest<Record<string, never>>('/notifications/push-token', {
       method: 'POST',
-      body: { token },
+      body: { token, platform },
       requiresAuth: true,
     }) as Promise<AddPushTokenResponse>;
   },

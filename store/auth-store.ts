@@ -1,4 +1,3 @@
-import { notificationsApi } from '@/src/api/notifications/client';
 import {
   clearTokens,
   getAuthToken,
@@ -108,16 +107,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
-    const { expoPushToken } = get();
-
-    if (expoPushToken) {
-      try {
-        await notificationsApi.removePushToken(expoPushToken);
-      } catch {
-        // Best-effort — don't block logout
-      }
-    }
-
+    // Deliberately not removing the push token from the backend here —
+    // logging out on this device shouldn't unregister it for push.
     await clearTokens();
     await storeUser(null);
 

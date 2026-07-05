@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "613962826894",
+    "project_id": "surespot-eatery",
+    "storage_bucket": "surespot-eatery.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:613962826894:android:96265d87b0c14ca65e35df",
+        "android_client_info": {
+          "package_name": "com.surespot.customer"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "613962826894-7i9d99f6qb0usl2mmfgit0kdgpgridaf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBN1ccDWQgXGND3skcXeLFiIPgR6Y3T6Lg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "613962826894-7i9d99f6qb0usl2mmfgit0kdgpgridaf.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:613962826894:android:cc527d7f2611014d5e35df",
+        "android_client_info": {
+          "package_name": "com.surespot.riders"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "613962826894-7i9d99f6qb0usl2mmfgit0kdgpgridaf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBN1ccDWQgXGND3skcXeLFiIPgR6Y3T6Lg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "613962826894-7i9d99f6qb0usl2mmfgit0kdgpgridaf.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -38,6 +38,7 @@ export interface RiderProfile {
   nin: string;
   regionId?: string;
   schedule?: number[];
+  vehicleType?: 'MOTORCYCLE' | 'BICYCLE';
   rating?: number;
   status?: string;
   createdAt?: string;
@@ -45,6 +46,14 @@ export interface RiderProfile {
   stats?: RiderStats;
   avatar?: string | null;
   isDemo?: boolean;
+}
+
+export interface UpdateVehicleTypeRequest {
+  vehicleType: 'MOTORCYCLE' | 'BICYCLE';
+}
+
+export interface UpdateVehicleTypeResponse {
+  vehicleType: 'MOTORCYCLE' | 'BICYCLE';
 }
 
 export interface MaskedRiderProfile {

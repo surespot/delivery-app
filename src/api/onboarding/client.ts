@@ -445,6 +445,17 @@ export const onboardingApi = {
       }
     ),
 
+  // Update vehicle type
+  updateVehicleType: (data: import('./types').UpdateVehicleTypeRequest) =>
+    apiRequest<import('./types').UpdateVehicleTypeResponse>(
+      '/riders/me/vehicle-type',
+      {
+        method: 'PATCH',
+        body: data,
+        requiresAuth: true,
+      }
+    ),
+
   // Logout
   logout: (data: { refreshToken: string; expoPushToken?: string | null }) =>
     apiRequest<import('./types').LogoutResponse>('/auth/logout', {

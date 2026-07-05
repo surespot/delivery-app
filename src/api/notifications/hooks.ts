@@ -46,7 +46,8 @@ export const useUnreadCount = (enabled: boolean = true) => {
 
 export const useAddPushToken = () => {
   return useMutation({
-    mutationFn: (token: string) => notificationsApi.addPushToken(token),
+    mutationFn: ({ token, platform }: { token: string; platform: 'ios' | 'android' }) =>
+      notificationsApi.addPushToken(token, platform),
   });
 };
 
