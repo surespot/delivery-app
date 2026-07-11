@@ -410,6 +410,18 @@ export default function DeliveryDetailsScreen() {
                   <Text style={styles.detailLabel}>Time Ordered</Text>
                   <Text style={styles.detailValue}>{formatTime(order.createdAt)}</Text>
                 </View>
+                {order.items && order.items.length > 0 && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Items</Text>
+                    <View style={styles.itemsList}>
+                      {order.items.map((item) => (
+                        <Text key={item.id} style={styles.detailValue}>
+                          {item.quantity}× {item.name}
+                        </Text>
+                      ))}
+                    </View>
+                  </View>
+                )}
                 {order.assignedAt && (
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Time Accepted</Text>
@@ -759,6 +771,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+  },
+  itemsList: {
+    flex: 1,
+    alignItems: 'flex-end',
+    gap: 2,
   },
   detailLabel: {
     fontSize: 14,
