@@ -399,8 +399,8 @@ export default function DeliveryDetailsScreen() {
                   <Text style={styles.detailValue}>{order.orderNumber}</Text>
                 </View>
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Fee</Text>
-                  <Text style={styles.detailValue}>{formatPrice(order.deliveryFee)}</Text>
+                  <Text style={styles.detailLabel}>Payout</Text>
+                  <Text style={styles.detailValue}>{formatPrice(order.riderPayout ?? order.deliveryFee)}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Distance</Text>
@@ -424,6 +424,12 @@ export default function DeliveryDetailsScreen() {
                   <Text style={styles.detailLabel}>Delivery Address</Text>
                   <Text style={styles.detailValue}>{order.deliveryAddress.address}</Text>
                 </View>
+                {order.deliveryAddress.contactName && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Recipient Name</Text>
+                    <Text style={styles.detailValue}>{order.deliveryAddress.contactName}</Text>
+                  </View>
+                )}
                 {order.deliveryAddress.contactPhone && (
                   <View style={[styles.detailRow, styles.recipientContactRow]}>
                     <Text style={styles.recipientContactLabel}>Recipient Contact</Text>

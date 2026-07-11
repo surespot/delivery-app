@@ -34,6 +34,7 @@ export interface DeliveryAddress {
   coordinates: Coordinates;
   instructions?: string;
   contactPhone?: string;
+  contactName?: string;
 }
 
 // Pickup Location
@@ -62,6 +63,7 @@ export interface Order {
   subtotal: number; // in kobo
   extrasTotal: number; // in kobo
   deliveryFee: number; // in kobo
+  riderPayout?: number; // in kobo — deliveryFee + riderBaseFee, sent by backend
   discountAmount: number; // in kobo
   total: number; // in kobo
   formattedTotal: string;

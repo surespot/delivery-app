@@ -91,7 +91,7 @@ export function transformOrderForUI(order: Order) {
     orderNumber: order.orderNumber,
     pickupAddress: order.pickupLocation?.address ?? '',
     deliveryAddress: order.deliveryAddress?.address ?? '',
-    price: formatPrice(order.deliveryFee), // Show delivery fee instead of total
+    price: formatPrice(order.riderPayout ?? order.deliveryFee),
     time: formatOrderTime(order.createdAt),
     distance,
     timestamp: order.createdAt,
