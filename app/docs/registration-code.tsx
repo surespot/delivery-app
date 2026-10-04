@@ -35,10 +35,10 @@ export default function RegistrationCodeScreen() {
             If you have questions, contact Surespot Rider Support:
           </Text>
           <Text style={styles.contactDetail}>
-            <Text style={styles.contactLabel}>Email:</Text> support@surespot.com
+            <Text style={styles.contactLabel}>Email:</Text> admin@surespot.ng
           </Text>
           <Text style={styles.contactDetail}>
-            <Text style={styles.contactLabel}>Phone:</Text> +2349120897829
+            <Text style={styles.contactLabel}>Phone:</Text> +2348163395600
           </Text>
           <Text style={styles.contactDetail}>
             <Text style={styles.contactLabel}>In-app Help:</Text> Open the Riders app → Help → Contact Support
